@@ -1,16 +1,23 @@
-module.exports = {
+export default {
   testEnvironment: 'node',
-  testMatch: ['**/tests/**/*.test.js'],
-  setupFiles: ['<rootDir>/tests/setup.js'],
+  coverageDirectory: 'coverage',
   collectCoverageFrom: [
     'src/**/*.js',
     '!src/**/*.test.js',
-    '!src/server.js'
+    '!src/**/index.js'
   ],
-  coverageDirectory: 'coverage',
+  coverageThreshold: {
+    global: {
+      branches: 50,
+      functions: 50,
+      lines: 50,
+      statements: 50
+    }
+  },
+  testMatch: ['**/tests/**/*.test.js'],
+  setupFiles: ['<rootDir>/tests/setup.js'],
   verbose: true,
   testTimeout: 30000,
-  // Ensure mock is applied before any imports
   globals: {
     'process.env.NODE_ENV': 'test'
   }
