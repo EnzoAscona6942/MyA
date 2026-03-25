@@ -1,0 +1,282 @@
+// ============================================================
+//  MINIMERCADO MVP — Prisma Schema
+//  Base de datos: PostgreSQL
+//  ORM: Prisma
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+//  USUARIOS / OPERADORES
+// ============================================================
+
+model Usuario {
+  id         Int       @id @default(autoincrement())
+  nombre     String
+  email      String    @unique
+  password   String                        // hash bcrypt
+  rol        Rol       @default(CAJERO)
+  activo     Boolean   @default(true)
+  creadoEn   DateTime  @default(now())
+
+  cajas      Caja[]
+  ventas     Venta[]
+  auditLogs  AuditLog[]
+
+  @@map("usuarios")
+}
+
+enum Rol {
+  ADMIN
+  CAJERO
+}
+
+// ============================================================
+//  CATEGORÍAS DE PRODUCTOS
+// ============================================================
+
+model Categoria {
+  id         Int        @id @default(autoincrement())
+  nombre     String     @unique
+  descripcion String?
+  creadoEn   DateTime   @default(now())
+
+  productos  Producto[]
+
+  @@map("categorias")
+}
+
+// ============================================================
+//  PROVEEDORES
+// ============================================================
+
+model Proveedor {
+  id         Int        @id @default(autoincrement())
+  nombre     String
+  contacto   String?
+  telefono   String?
+  email      String?
+  activo     Boolean    @default(true)
+  creadoEn   DateTime   @default(now())
+
+  productos  Producto[]
+  ingresos   IngresoStock[]
+
+  @@map("proveedores")
+}
+
+// ============================================================
+//  PRODUCTOS
+// ============================================================
+
+model Producto {
+  id              Int        @id @default(autoincrement())
+  nombre          String
+  descripcion     String?
+  codigoBarras    String?    @unique              // escaneado por lector
+  codigoInterno   String?    @unique              // código propio del negocio
+  precio          Decimal    @db.Decimal(10, 2)   // precio de venta
+  precioCompra    Decimal?   @db.Decimal(10, 2)   // para calcular margen
+  stock           Int        @default(0)
+  stockMinimo     Int        @default(5)          // alerta de stock bajo
+  unidadMedida    String     @default("unidad")   // unidad, kg, litro, etc.
+  activo          Boolean    @default(true)
+  imagen          String?                         // URL o path de imagen
+  creadoEn        DateTime   @default(now())
+  actualizadoEn   DateTime   @updatedAt
+
+  categoriaId     Int?
+  categoria       Categoria? @relation(fields: [categoriaId], references: [id])
+
+  proveedorId     Int?
+  proveedor       Proveedor? @relation(fields: [proveedorId], references: [id])
+
+  ventaItems      VentaItem[]
+  ingresoItems    IngresoStockItem[]
+
+  @@map("productos")
+}
+
+// ============================================================
+//  CAJA
+// ============================================================
+
+model Caja {
+  id              Int           @id @default(autoincrement())
+  fechaApertura   DateTime      @default(now())
+  fechaCierre     DateTime?
+  montoInicial    Decimal       @db.Decimal(10, 2)   // fondo inicial declarado
+  montoFinalReal  Decimal?      @db.Decimal(10, 2)   // lo que había físicamente al cerrar
+  estado          EstadoCaja    @default(ABIERTA)
+  observaciones   String?
+
+  usuarioId       Int
+  usuario         Usuario       @relation(fields: [usuarioId], references: [id])
+
+  ventas          Venta[]
+  movimientos     MovimientoCaja[]
+
+  @@map("cajas")
+}
+
+enum EstadoCaja {
+  ABIERTA
+  CERRADA
+}
+
+// ============================================================
+//  MOVIMIENTOS DE CAJA (ingresos/egresos manuales)
+// ============================================================
+
+model MovimientoCaja {
+  id          Int              @id @default(autoincrement())
+  tipo        TipoMovimiento
+  monto       Decimal          @db.Decimal(10, 2)
+  descripcion String
+  fecha       DateTime         @default(now())
+
+  cajaId      Int
+  caja        Caja             @relation(fields: [cajaId], references: [id])
+
+  @@map("movimientos_caja")
+}
+
+enum TipoMovimiento {
+  INGRESO    // ej: pago de servicio recibido
+  EGRESO     // ej: pago a proveedor, retiro de fondo
+}
+
+// ============================================================
+//  VENTAS
+// ============================================================
+
+model Venta {
+  id              Int           @id @default(autoincrement())
+  fecha           DateTime      @default(now())
+  subtotal        Decimal       @db.Decimal(10, 2)
+  descuento       Decimal       @default(0) @db.Decimal(10, 2)
+  total           Decimal       @db.Decimal(10, 2)
+  metodoPago      MetodoPago    @default(EFECTIVO)
+  montoRecibido   Decimal?      @db.Decimal(10, 2)   // para calcular vuelto
+  vuelto          Decimal?      @db.Decimal(10, 2)
+  estado          EstadoVenta   @default(COMPLETADA)
+  observaciones   String?
+
+  cajaId          Int
+  caja            Caja          @relation(fields: [cajaId], references: [id])
+
+  usuarioId       Int
+  usuario         Usuario       @relation(fields: [usuarioId], references: [id])
+
+  items           VentaItem[]
+
+  @@map("ventas")
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA_DEBITO
+  TARJETA_CREDITO
+  TRANSFERENCIA
+  QR
+}
+
+enum EstadoVenta {
+  COMPLETADA
+  ANULADA
+  PENDIENTE
+}
+
+// ============================================================
+//  ITEMS DE VENTA (detalle de cada venta)
+// ============================================================
+
+model VentaItem {
+  id              Int       @id @default(autoincrement())
+  cantidad        Int
+  precioUnitario  Decimal   @db.Decimal(10, 2)   // precio al momento de venta
+  subtotal        Decimal   @db.Decimal(10, 2)
+
+  ventaId         Int
+  venta           Venta     @relation(fields: [ventaId], references: [id])
+
+  productoId      Int
+  producto        Producto  @relation(fields: [productoId], references: [id])
+
+  @@map("venta_items")
+}
+
+// ============================================================
+//  INGRESO DE STOCK (compras / reposición)
+// ============================================================
+
+model IngresoStock {
+  id              Int                @id @default(autoincrement())
+  fecha           DateTime           @default(now())
+  numeroRemito    String?
+  observaciones   String?
+  total           Decimal?           @db.Decimal(10, 2)
+
+  proveedorId     Int?
+  proveedor       Proveedor?         @relation(fields: [proveedorId], references: [id])
+
+  items           IngresoStockItem[]
+
+  @@map("ingresos_stock")
+}
+
+model IngresoStockItem {
+  id              Int          @id @default(autoincrement())
+  cantidad        Int
+  precioUnitario  Decimal?     @db.Decimal(10, 2)
+
+  ingresoId       Int
+  ingreso         IngresoStock @relation(fields: [ingresoId], references: [id])
+
+  productoId      Int
+  producto        Producto     @relation(fields: [productoId], references: [id])
+
+  @@map("ingreso_stock_items")
+}
+
+// ============================================================
+//  AUDIT LOG (logging de acciones)
+// ============================================================
+
+model AuditLog {
+  id          Int       @id @default(autoincrement())
+  action      AccionAuditLog
+  resource    String                       // recurso afectado (ej: "usuarios", "productos")
+  resourceId  Int?                         // ID del recurso si aplica
+  details     String?                     // JSON con detalles adicionales
+  ipAddress   String?                     // IP del cliente
+
+  usuarioId   Int?
+  usuario     Usuario?  @relation(fields: [usuarioId], references: [id])
+
+  creadoEn    DateTime  @default(now())
+
+  @@index([usuarioId])
+  @@index([action])
+  @@index([resource])
+  @@index([creadoEn])
+  @@map("audit_logs")
+}
+
+enum AccionAuditLog {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  OTHER
+}
