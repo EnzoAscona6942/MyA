@@ -1,4 +1,6 @@
-export const API_URL = "http://localhost:3001/api";
+// API URL: use environment variable in production, fallback to localhost for development
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3001";
+export const API_URL = `${API_BASE}/api`;
 
 export const getHeaders = () => {
     const token = localStorage.getItem("token");
