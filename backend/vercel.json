@@ -11,9 +11,5 @@
       "src": "/(.*)",
       "dest": "/src/server.js"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "framework": null
+  ]
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
+import { API_URL, getHeaders } from "../lib/api";
 import CierreCaja from "./CierreCaja";
 import Stock from "./Stock";
 import Productos from "./Productos";
@@ -46,12 +47,6 @@ const styleTag = document.createElement("style");
 styleTag.textContent = globalStyles;
 document.head.appendChild(styleTag);
 
-// ── Config API ───────────────────────────────────────────────
-const API_URL = "http://localhost:3001/api";
-const getHeaders = () => ({
-  "Content-Type": "application/json",
-  "Authorization": `Bearer ${localStorage.getItem("token") || ""}`
-});
 
 // ── Paleta de colores ────────────────────────────────────────
 const C = {
