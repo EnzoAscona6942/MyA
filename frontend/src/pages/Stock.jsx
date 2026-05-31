@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -50,22 +50,8 @@ export default function Stock() {
     api.get('/proveedores').then(setProveedores).catch(console.error);
   }, []);
 
-  useEffect(() => {
-    if (activeTab === 'listado') {
-      fetchProductos();
-    }
-  }, [filtros.categoriaId, filtros.stockBajo, activeTab]);
-
-  // Debounce para búsqueda manual
-  useEffect(() => {
-    if (activeTab !== 'listado') return;
-    const timer = setTimeout(() => {
-      fetchProductos();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [filtros.busqueda]);
-
-  const fetchProductos = async () => {
+  // fetchProductos ANTES de los effects que lo referencian (evita TDZ)
+  const fetchProductos = useCallback(async () => {
     setLoading(true);
     try {
       let query = new URLSearchParams();
@@ -74,13 +60,33 @@ export default function Stock() {
       if (filtros.stockBajo) query.append('stockBajo', 'true');
       
       const data = await api.get(`/productos?${query.toString()}`);
-      setProductos(data.data);
+      // Handle both old format (array) and new format ({ data, pagination })
+      if (Array.isArray(data)) {
+        setProductos(data);
+      } else {
+        setProductos(data.data || []);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filtros]);
+
+  useEffect(() => {
+    if (activeTab === 'listado') {
+      fetchProductos();
+    }
+  }, [filtros.categoriaId, filtros.stockBajo, activeTab, fetchProductos]);
+
+  // Debounce para búsqueda manual
+  useEffect(() => {
+    if (activeTab !== 'listado') return;
+    const timer = setTimeout(() => {
+      fetchProductos();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filtros.busqueda, fetchProductos, activeTab]);
 
   // ── LÓGICA DEL FORMULARIO INGRESO ──
   useEffect(() => {
@@ -88,7 +94,7 @@ export default function Stock() {
       const delay = setTimeout(async () => {
         try {
           const res = await api.get(`/productos?busqueda=${encodeURIComponent(busquedaProdForm.trim())}`);
-          setSugerenciasProd(res);
+          setSugerenciasProd(res.data);
         } catch (e) {
              console.error(e);
         }
@@ -145,7 +151,11 @@ export default function Stock() {
       setItemsIngreso([]);
       setBusquedaProdForm('');
     } catch (e) {
-      setFormError(e.error || 'Error al guardar ingreso');
+      if (e instanceof TypeError) {
+        setFormError('Error de red');
+      } else {
+        setFormError(e.error || 'Error al guardar ingreso');
+      }
     } finally {
       setSubmitting(false);
     }

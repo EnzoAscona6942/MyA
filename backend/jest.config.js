@@ -1,4 +1,4 @@
-export default {
+module.exports = {
   testEnvironment: 'node',
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
@@ -17,8 +17,5 @@ export default {
   testMatch: ['**/tests/**/*.test.js'],
   setupFiles: ['<rootDir>/tests/setup.js'],
   verbose: true,
-  testTimeout: 30000,
-  globals: {
-    'process.env.NODE_ENV': 'test'
-  }
+  testTimeout: 30000
 }

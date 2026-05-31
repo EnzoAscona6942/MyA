@@ -12,6 +12,16 @@ router.post('/ingreso', authMiddleware, soloAdmin, async (req, res) => {
     return res.status(400).json({ error: 'El ingreso debe tener al menos un item' })
   }
 
+  // Validate numeric fields before Prisma
+  for (const item of items) {
+    const pid = parseInt(item.productoId, 10)
+    const cant = parseInt(item.cantidad, 10)
+    const pu = item.precioUnitario ? parseFloat(item.precioUnitario) : 0
+    if (isNaN(pid)) return res.status(400).json({ error: `ID de producto inválido: "${item.productoId}"` })
+    if (isNaN(cant)) return res.status(400).json({ error: `Cantidad inválida para producto ${pid}` })
+    if (isNaN(pu)) return res.status(400).json({ error: `Precio unitario inválido para producto ${pid}` })
+  }
+
   try {
     const total = items.reduce((acc, i) => {
       return acc + (parseFloat(i.precioUnitario) || 0) * parseInt(i.cantidad)

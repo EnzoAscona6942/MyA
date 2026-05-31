@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
-import { API_URL, getHeaders } from "../lib/api";
+import { API_URL, getHeaders, api } from "../lib/api";
 import CierreCaja from "./CierreCaja";
 import Stock from "./Stock";
 import Productos from "./Productos";
@@ -450,9 +450,7 @@ function POS() {
   // ── Buscar producto por código o nombre ───────────────────
   const buscarPorCodigo = useCallback(async (codigo) => {
     try {
-      const res = await fetch(`${API_URL}/productos/barras/${codigo.trim()}`, { headers: getHeaders() });
-      if (!res.ok) throw new Error("No encontrado");
-      const prod = await res.json();
+      const prod = await api.get(`/productos/barras/${codigo.trim()}`);
       agregarAlCarrito(prod);
       setBusqueda("");
       setError("");
@@ -518,8 +516,8 @@ function POS() {
     if (busqueda.trim().length >= 2) {
       const delay = setTimeout(async () => {
         try {
-          const res = await fetch(`${API_URL}/productos?busqueda=${encodeURIComponent(busqueda.trim())}`, { headers: getHeaders() });
-          if (res.ok) setProductosFiltrados((await res.json()).data?.slice(0, 6));
+          const data = await api.get(`/productos?busqueda=${encodeURIComponent(busqueda.trim())}`);
+          setProductosFiltrados(data.data?.slice(0, 6));
         } catch (e) {
           console.error("Error al buscar productos", e);
         }
@@ -534,11 +532,8 @@ function POS() {
   useEffect(() => {
     const fetchFrecuentes = async () => {
       try {
-        const res = await fetch(`${API_URL}/productos`, { headers: getHeaders() });
-        if (res.ok) {
-          const data = await res.json();
-          setFrecuentes(data.data?.slice(0, 6));
-        }
+        const data = await api.get('/productos');
+        setFrecuentes(data.data?.slice(0, 6));
       } catch (e) {
         console.error("Error cargando frecuentes", e);
       }
@@ -561,18 +556,7 @@ function POS() {
     };
 
     try {
-      const res = await fetch(`${API_URL}/ventas`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Error al registrar la venta");
-      }
-
-      const ventaConfirmada = await res.json();
+      const ventaConfirmada = await api.post('/ventas', payload);
 
       const ventaFront = {
         id: ventaConfirmada.id,
@@ -710,7 +694,7 @@ function POS() {
               >
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{p.nombre}</div>
-                  <div style={{ fontSize: 11, color: C.textLight, marginTop: 1 }}>{p.codigoBarras} · {p.categoria}</div>
+                  <div style={{ fontSize: 11, color: C.textLight, marginTop: 1 }}>{p.codigoBarras} · {p.categoria?.nombre || "-"}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: C.accent, fontFamily: "'DM Mono', monospace" }}>{fmt(p.precio)}</div>

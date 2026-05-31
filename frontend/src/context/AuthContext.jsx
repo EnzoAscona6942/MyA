@@ -35,7 +35,7 @@ export function AuthProvider({ children }) {
 
     const verificarCaja = async () => {
         try {
-            const { caja } = await api.get('/caja/activa');
+            const caja = await api.get('/caja/activa');
             if (caja) {
                 setCajaActiva(caja.id);
                 localStorage.setItem("cajaId", caja.id);

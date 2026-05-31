@@ -35,8 +35,8 @@ router.get('/', authMiddleware, async (req, res) => {
     if (stockBajo === 'true') {
       // Raw SQL for stock <= stockMinimo
       const lowStock = await prisma.$queryRaw`
-        SELECT id FROM productos
-        WHERE stock <= "stockMinimo" AND activo = true
+        SELECT id FROM productos p
+        WHERE p.stock <= p."stockMinimo" AND p.activo = true
       `
       const ids = lowStock.map(r => r.id)
       
