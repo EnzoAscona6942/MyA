@@ -109,7 +109,7 @@ export default function Stock() {
     if (itemsIngreso.find(i => i.productoId === prod.id)) return;
     setItemsIngreso(prev => [...prev, { 
       productoId: prod.id, nombre: prod.nombre, 
-      cantidad: 1, precioUnitario: prod.precio ? prod.precio / 1.5 : 0 
+      cantidad: 1, precioUnitario: "" 
     }]);
     setSugerenciasProd([]);
     setBusquedaProdForm('');
@@ -139,7 +139,7 @@ export default function Stock() {
         items: itemsIngreso.map(i => ({ 
            productoId: i.productoId, 
            cantidad: parseInt(i.cantidad, 10), 
-           precioUnitario: parseFloat(i.precioUnitario) || 0 
+           precioUnitario: i.precioUnitario === '' ? null : parseFloat(i.precioUnitario) 
         }))
       };
       await api.post('/stock/ingreso', payload);

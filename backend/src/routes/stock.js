@@ -52,7 +52,12 @@ router.post('/ingreso', authMiddleware, soloAdmin, async (req, res) => {
       for (const item of items) {
         await tx.producto.update({
           where: { id: parseInt(item.productoId) },
-          data: { stock: { increment: parseInt(item.cantidad) } }
+          data: {
+            stock: { increment: parseInt(item.cantidad) },
+            ...(parseFloat(item.precioUnitario) > 0 && {
+              precio: parseFloat(item.precioUnitario)
+            })
+          }
         })
       }
 

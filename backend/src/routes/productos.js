@@ -158,7 +158,7 @@ router.post('/bulk', authMiddleware, soloAdmin, async (req, res) => {
     // Usamos iteración en vez de $transaction interactiva para simplificar el flujo upsert/create manual
     // o para gestionar errores individuales sin abortar toda la transacción si un código falla.
     for (const prod of productos) {
-      if (!prod.nombre || !prod.precio) {
+      if (!prod.nombre || !prod.codigoBarras) {
         errores++;
         continue;
       }
@@ -167,7 +167,7 @@ router.post('/bulk', authMiddleware, soloAdmin, async (req, res) => {
         nombre: prod.nombre,
         descripcion: prod.descripcion || null,
         codigoBarras: prod.codigoBarras ? String(prod.codigoBarras).trim() : null,
-        precio: parseFloat(prod.precio),
+        precio: prod.precio ? parseFloat(prod.precio) : 0,
         stock: parseInt(prod.stock) || 0,
         stockMinimo: parseInt(prod.stockMinimo) || 5,
         categoriaId: prod.categoriaId ? parseInt(prod.categoriaId) : null
@@ -222,8 +222,8 @@ router.post('/',
   soloAdmin,
   [
     body('nombre').notEmpty().withMessage('El nombre es requerido'),
-    body('precio').isFloat({ min: 0 }).withMessage('El precio debe ser un número positivo'),
-    body('codigoBarras').optional().isString(),
+    body('codigoBarras').notEmpty().withMessage('El código de barras es requerido'),
+    body('precio').optional().isFloat({ min: 0 }).withMessage('El precio debe ser un número positivo'),
     body('codigoInterno').optional().isString(),
     body('stock').optional().isInt({ min: 0 }).withMessage('El stock debe ser un número entero'),
     body('stockMinimo').optional().isInt({ min: 0 }).withMessage('El stock mínimo debe ser un número entero'),
@@ -246,7 +246,7 @@ router.post('/',
         descripcion,
         codigoBarras,
         codigoInterno,
-        precio: parseFloat(precio),
+        precio: precio ? parseFloat(precio) : 0,
         precioCompra: precioCompra ? parseFloat(precioCompra) : null,
         stock: parseInt(stock) || 0,
         stockMinimo: parseInt(stockMinimo) || 5,

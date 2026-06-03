@@ -152,10 +152,10 @@ export default function Productos() {
           stock: getVal(['stock', 'cantidad', 'física', 'fisica']),
           stockMinimo: getVal(['minimo', 'mínimo', 'stock minimo', 'alerta', 'stockminimo'])
         };
-      }).filter(p => p.nombre && p.precio);
+      }).filter(p => p.nombre && p.codigoBarras);
 
       if (payloadProductos.length === 0) {
-        throw new Error('No se encontraron productos válidos en el archivo. Verifica las columnas (Nombre, Precio obligatorios).');
+        throw new Error('No se encontraron productos válidos en el archivo. Verifica las columnas (Nombre y Código obligatorios).');
       }
 
       const response = await api.post('/productos/bulk', { productos: payloadProductos });
