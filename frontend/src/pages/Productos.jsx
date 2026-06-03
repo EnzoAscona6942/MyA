@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { api } from '../lib/api';
+import { api, getHeaders, API_URL } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { useChunkedUpload } from '../hooks/useChunkedUpload';
 import * as XLSX from 'xlsx';
 
 const C = {
@@ -29,7 +30,10 @@ export default function Productos() {
   const { usuario } = useAuth();
   
   const fileInputRef = useRef(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const chunkedUpload = useChunkedUpload({ apiUrl: API_URL, headers: getHeaders() });
+  const [uploadError, setUploadError] = useState('');
+  const prevUploadStateRef = useRef('idle');
+  const fetchTriggeredRef = useRef(false);
 
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -78,6 +82,44 @@ export default function Productos() {
     return () => clearTimeout(timer);
   }, [busqueda, categoriaId]);
 
+  // ── CHUNKED UPLOAD: confirm chain on paused ──
+  useEffect(() => {
+    if (chunkedUpload.state !== 'paused' || !chunkedUpload.error) return;
+
+    const { chunkIndex, message } = chunkedUpload.error;
+    const chunkNum = chunkIndex + 1;
+
+    const retry = window.confirm(
+      `El lote ${chunkNum} falló: ${message}. ¿Reintentar?`
+    );
+
+    if (retry) {
+      chunkedUpload.retryChunk();
+    } else {
+      const skip = window.confirm(
+        '¿Saltar este lote y continuar con el siguiente?'
+      );
+
+      if (skip) {
+        chunkedUpload.skipChunk();
+      } else {
+        chunkedUpload.cancel();
+      }
+    }
+  }, [chunkedUpload.state, chunkedUpload.error]);
+
+  // ── CHUNKED UPLOAD: refetch products when upload finishes ──
+  useEffect(() => {
+    if (chunkedUpload.state === 'done' && !fetchTriggeredRef.current) {
+      fetchTriggeredRef.current = true;
+      fetchProductos();
+    }
+    if (chunkedUpload.state !== 'done') {
+      fetchTriggeredRef.current = false;
+    }
+    prevUploadStateRef.current = chunkedUpload.state;
+  }, [chunkedUpload.state]);
+
   // Handle pagination
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -125,7 +167,7 @@ export default function Productos() {
     const file = e.target.files[0];
     if (!file) return;
 
-    setIsUploading(true);
+    setUploadError('');
     setFormError('');
     setSuccess('');
 
@@ -155,16 +197,17 @@ export default function Productos() {
       }).filter(p => p.nombre && p.codigoBarras);
 
       if (payloadProductos.length === 0) {
-        throw new Error('No se encontraron productos válidos en el archivo. Verifica las columnas (Nombre y Código obligatorios).');
+        setUploadError('No se encontraron productos válidos en el archivo. Verifica las columnas (Nombre y Código obligatorios).');
+        return;
       }
 
-      const response = await api.post('/productos/bulk', { productos: payloadProductos });
-      setSuccess(`Carga masiva: ${response.creados} agregados, ${response.actualizados} actualizados, ${response.errores} errores.`);
-      fetchProductos();
+      // Chunked upload via hook — sequential 250-product chunks
+      await chunkedUpload.upload(payloadProductos);
     } catch (err) {
-      alert("Error al procesar el archivo: " + (err.error || err.message || "Error desconocido"));
+      if (err.name !== 'AbortError') {
+        setUploadError("Error al procesar el archivo: " + (err.error || err.message || "Error desconocido"));
+      }
     } finally {
-      setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -258,11 +301,11 @@ export default function Productos() {
             ref={fileInputRef} 
             onChange={handleFileUpload} 
           />
-          <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} style={{
+          <button onClick={() => fileInputRef.current?.click()} disabled={chunkedUpload.state === 'uploading'} style={{
             padding: "12px 20px", borderRadius: 0, background: C.white, color: C.text,
-            border: `1px solid ${C.text}`, fontWeight: 700, fontSize: 13, cursor: isUploading ? "wait" : "pointer", transition: "opacity 0.2s"
+            border: `1px solid ${C.text}`, fontWeight: 700, fontSize: 13, cursor: chunkedUpload.state === 'uploading' ? "wait" : "pointer", transition: "opacity 0.2s"
           }} onMouseEnter={e => e.currentTarget.style.opacity = 0.8} onMouseLeave={e => e.currentTarget.style.opacity = 1}>
-            {isUploading ? "Cargando..." : "⬆ Carga Excel/CSV"}
+            {chunkedUpload.state === 'uploading' ? "Subiendo..." : "⬆ Carga Excel/CSV"}
           </button>
           <button onClick={handleOpenNuevo} style={{
             padding: "12px 20px", borderRadius: 0, background: C.text, color: "#fff",
@@ -274,6 +317,100 @@ export default function Productos() {
       </div>
 
       {/* ── ALERTS ── */}
+      {/* Upload progress bar */}
+      {(chunkedUpload.state === 'uploading' || chunkedUpload.state === 'paused') && (
+        <div style={{ padding: "0 32px", marginTop: 24 }}>
+          <div style={{ background: '#E5E7EB', borderRadius: 0, overflow: 'hidden', marginBottom: 8, height: 6 }}>
+            <div style={{
+              background: chunkedUpload.state === 'paused' ? C.amber : C.blue,
+              width: `${chunkedUpload.progress.percent}%`,
+              height: '100%',
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, color: C.textMid }}>
+              Lote {chunkedUpload.progress.currentChunk}/{chunkedUpload.progress.totalChunks} ·{' '}
+              {chunkedUpload.progress.processedProducts.toLocaleString()}/{chunkedUpload.progress.totalProducts.toLocaleString()} productos
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+              {chunkedUpload.progress.percent}%
+            </span>
+          </div>
+          {/* Cancel button visible only during active upload */}
+          {chunkedUpload.state === 'uploading' && (
+            <div style={{ marginTop: 8 }}>
+              <button onClick={chunkedUpload.cancel} style={{
+                padding: "6px 14px", borderRadius: 0, border: `1px solid ${C.danger}`,
+                background: C.white, color: C.danger, cursor: 'pointer',
+                fontSize: 12, fontWeight: 600, fontFamily: "inherit"
+              }}>
+                Cancelar carga
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Upload summary (done / cancelled) */}
+      {(chunkedUpload.state === 'done' || chunkedUpload.state === 'cancelled') && (
+        <div style={{ padding: "0 32px", marginTop: 24 }}>
+          <div style={{
+            background: chunkedUpload.state === 'done' ? C.accentBg : C.amberBg,
+            color: chunkedUpload.state === 'done' ? C.accent : C.amber,
+            padding: 16, borderRadius: 0, fontSize: 13, fontWeight: 600,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'
+          }}>
+            <div>
+              <div style={{ marginBottom: 4 }}>
+                {chunkedUpload.state === 'done' ? '✓ Carga completada' : '⚠ Carga cancelada (resultados parciales)'}
+              </div>
+              <div style={{ fontWeight: 400, opacity: 0.9 }}>
+                {chunkedUpload.results.creados} creados · {chunkedUpload.results.actualizados} actualizados · {chunkedUpload.results.errores} errores
+              </div>
+              <div style={{ fontWeight: 400, opacity: 0.7, fontSize: 12, marginTop: 2 }}>
+                {chunkedUpload.results.chunksCompletados}/{chunkedUpload.results.totalChunks} lotes procesados
+              </div>
+            </div>
+            <button onClick={chunkedUpload.reset} style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: 'inherit', fontSize: 16, fontWeight: 700, lineHeight: 1,
+              padding: '0 0 0 12px', opacity: 0.6
+            }} title="Cerrar">×</button>
+          </div>
+        </div>
+      )}
+
+      {/* Upload fatal error (hook crashed unexpectedly) */}
+      {chunkedUpload.state === 'error' && chunkedUpload.error && (
+        <div style={{ padding: "0 32px", marginTop: 24 }}>
+          <div style={{
+            background: C.dangerBg, color: C.danger, padding: 16, borderRadius: 0,
+            fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'
+          }}>
+            <div>
+              <div style={{ marginBottom: 4 }}>✗ Error inesperado</div>
+              <div style={{ fontWeight: 400, opacity: 0.9 }}>{chunkedUpload.error.message}</div>
+            </div>
+            <button onClick={chunkedUpload.reset} style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: 'inherit', fontSize: 16, fontWeight: 700, lineHeight: 1,
+              padding: '0 0 0 12px', opacity: 0.6
+            }} title="Cerrar">×</button>
+          </div>
+        </div>
+      )}
+
+      {/* Upload parse/validation error (e.g., empty file) */}
+      {uploadError && (
+        <div style={{ padding: "0 32px", marginTop: 24 }}>
+          <div style={{ background: C.dangerBg, color: C.danger, padding: 12, borderRadius: 0, fontSize: 13, fontWeight: 600 }}>
+            ⚠ {uploadError}
+          </div>
+        </div>
+      )}
+
+      {/* CRUD success banner */}
       {success && (
         <div style={{ padding: "0 32px", marginTop: 24 }}>
           <div style={{ background: C.accentBg, color: C.accent, padding: 12, borderRadius: 0, fontSize: 13, fontWeight: 600 }}>
