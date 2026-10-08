@@ -103,16 +103,28 @@ const paginationSchema = z.object({
 })
 
 // ── ID param ─────────────────────────────────────────────────
+// Express entrega los path params SIEMPRE como string, por esto coercióna:
+// sin ella GET /ventas/:id recibía un 400 siempre.
 const idParamSchema = z.object({
-  id: positiveInt
+  id: z.coerce.number().int().positive()
 })
 
+// Un query param booleano llega como "true"/"false". z.coerce.boolean() usa
+// la truthiness de JS, así que convertiría el string "false" en true y
+// invertiría el filtro. Este transform sí distingue las dos cosas.
+const booleanFromQuery = z
+  .enum(['true', 'false', '1', '0'])
+  .transform((v) => v === 'true' || v === '1')
+
 // ── Busqueda ─────────────────────────────────────────────────
+// Estos filtros también viajan como string en la query, y esta schema se
+// mergea con paginationSchema en GET /ventas, así que un filtro presente
+// con valor numérico o booleano provocaba un 400.
 const busquedaSchema = z.object({
   busqueda: z.string().max(100).optional(),
-  categoriaId: positiveInt.optional(),
-  stockBajo: z.boolean().optional(),
-  activo: z.boolean().optional()
+  categoriaId: z.coerce.number().int().positive().optional(),
+  stockBajo: booleanFromQuery.optional(),
+  activo: booleanFromQuery.optional()
 })
 
 module.exports = {
