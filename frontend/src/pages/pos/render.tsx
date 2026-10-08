@@ -10,6 +10,8 @@ import Stock from '../Stock';
 import Reportes from '../Reportes';
 import Ventas from '../Ventas';
 import AuditLog from '../AuditLog';
+import CierreCaja from '../CierreCaja';
+import Usuarios from '../Usuarios';
 import type { FC, ChangeEvent, KeyboardEvent, FocusEvent, MouseEvent } from 'react';
 
 // ============================================================
@@ -355,11 +357,11 @@ export default function MainApp() {
     switch (activeModule) {
       case 'pos': return <POS />;
       case 'stock': return <Stock />;
-      case 'caja': return <ModuloPendiente nombre="Cierre de Caja" />;
+      case 'caja': return <CierreCaja />;
       case 'productos': return <ModuloPendiente nombre="Productos" />;
       case 'reportes': return <Reportes />;
       case 'ventas': return <Ventas />;
-      case 'usuarios': return <ModuloPendiente nombre="Usuarios" />;
+      case 'usuarios': return <Usuarios />;
       case 'audit': return <AuditLog />;
       default: return <POS />;
     }
