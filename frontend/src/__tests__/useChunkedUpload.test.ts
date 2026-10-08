@@ -1,11 +1,48 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useChunkedUpload } from '../hooks/useChunkedUpload';
 
 const API_URL = 'http://test.com/api';
 const HEADERS = { 'Content-Type': 'application/json' };
 
-function createProducts(count) {
+interface ProductoTest {
+  nombre: string;
+  codigoBarras: string;
+}
+
+/** Cuerpo que el hook envía a POST /productos/bulk. */
+interface BulkBody {
+  productos: ProductoTest[];
+}
+
+/**
+ * Formas admitidas por `createFetchMock`, en el orden en que las evalúa:
+ * 'HANG' cuelga hasta el abort, una función sustituye la respuesta, y un
+ * objeto plano con `error` / `status: 'reject'` provoca un rechazo.
+ */
+interface ResponseSpecObject {
+  ok?: boolean;
+  json?: unknown;
+  error?: unknown;
+  errorText?: string;
+  status?: string;
+  // El objeto completo es además el payload JSON de la respuesta, por eso
+  // admite claves arbitrarias (`creados`, `actualizados`, `errores`, ...).
+  [key: string]: unknown;
+}
+
+type ResponseSpec =
+  | 'HANG'
+  | ResponseSpecObject
+  | ((ctx: { idx: number; signal?: AbortSignal | null }) => unknown);
+
+/** Instala un `vi.fn()` como `global.fetch` en un único punto de frontera. */
+const installFetch = (mock: Mock): void => {
+  global.fetch = mock as unknown as typeof fetch;
+};
+
+function createProducts(count: number): ProductoTest[] {
   return Array.from({ length: count }, (_, i) => ({
     nombre: `Product ${i}`,
     codigoBarras: `COD${String(i).padStart(5, '0')}`
@@ -16,15 +53,15 @@ function createProducts(count) {
  * Creates a signal-aware fetch mock that can hang on specific calls
  * and properly rejects when AbortController.signal is aborted.
  */
-function createFetchMock(responses) {
+function createFetchMock(responses: ResponseSpec[]): { mock: Mock; getCallCount: () => number } {
   let callCount = 0;
-  const hangingResolvers = [];
   return {
-    mock: vi.fn().mockImplementation(async (_url, opts) => {
+    mock: vi.fn().mockImplementation(async (_url: string, opts?: RequestInit) => {
       const idx = callCount++;
-      const { signal } = opts || {};
+      const signal = opts?.signal ?? undefined;
+      const spec = responses[idx];
 
-      if (responses[idx] === 'HANG') {
+      if (spec === 'HANG') {
         return new Promise((_resolve, reject) => {
           if (signal?.aborted) {
             const err = new Error('The operation was aborted');
@@ -41,29 +78,26 @@ function createFetchMock(responses) {
         });
       }
 
-      if (typeof responses[idx] === 'function') {
-        return responses[idx]({ idx, signal });
+      if (typeof spec === 'function') {
+        return spec({ idx, signal });
       }
 
-      if (responses[idx] && responses[idx].error) {
-        throw responses[idx].error;
+      const obj = spec && typeof spec === 'object' ? spec : undefined;
+
+      if (obj && obj.error) {
+        throw obj.error;
       }
 
-      if (responses[idx] && responses[idx].status === 'reject') {
-        throw responses[idx].error || new Error('Request failed');
+      if (obj && obj.status === 'reject') {
+        throw obj.error || new Error('Request failed');
       }
 
       return {
-        ok: responses[idx]?.ok !== false,
-        json: () => {
-          const val = responses[idx]?.json
-            ? Promise.resolve(responses[idx].json)
-            : Promise.resolve(responses[idx]);
-          return val;
-        },
-        text: () => Promise.resolve(responses[idx]?.errorText || '')
+        ok: obj?.ok !== false,
+        json: () => (obj?.json ? Promise.resolve(obj.json) : Promise.resolve(obj)),
+        text: () => Promise.resolve(obj?.errorText || '')
       };
-    }),
+    }) as unknown as Mock,
     getCallCount: () => callCount
   };
 }
@@ -107,7 +141,7 @@ describe('useChunkedUpload', () => {
       const { mock } = createFetchMock([
         { creados: 5, actualizados: 10, errores: 0 }
       ]);
-      global.fetch = mock;
+      installFetch(mock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -127,7 +161,7 @@ describe('useChunkedUpload', () => {
       const { mock } = createFetchMock([
         { creados: 50, actualizados: 0, errores: 0 }
       ]);
-      global.fetch = mock;
+      installFetch(mock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -146,7 +180,7 @@ describe('useChunkedUpload', () => {
         { creados: 250, actualizados: 0, errores: 0 },
         { creados: 250, actualizados: 0, errores: 0 }
       ]);
-      global.fetch = mock;
+      installFetch(mock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -162,7 +196,7 @@ describe('useChunkedUpload', () => {
     });
 
     it('should send 3 requests for 501 products (250+250+1)', async () => {
-      const bodyArr = [];
+      const bodyArr: ProductoTest[][] = [];
       const { mock } = createFetchMock([
         {
           json: { creados: 250, actualizados: 0, errores: 0 },
@@ -175,11 +209,11 @@ describe('useChunkedUpload', () => {
           json: { creados: 1, actualizados: 0, errores: 0 }
         }
       ]);
-      global.fetch = mock;
+      installFetch(mock);
 
       // Override mock to capture bodies
-      global.fetch.mockImplementation(async (url, opts) => {
-        const body = JSON.parse(opts.body);
+      const captureMock = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
+        const body = JSON.parse(String(opts?.body)) as BulkBody;
         bodyArr.push(body.productos);
         const length = body.productos.length;
         return {
@@ -187,6 +221,7 @@ describe('useChunkedUpload', () => {
           json: () => Promise.resolve({ creados: length, actualizados: 0, errores: 0 })
         };
       });
+      installFetch(captureMock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -200,8 +235,8 @@ describe('useChunkedUpload', () => {
       expect(bodyArr[0]).toHaveLength(250);
       expect(bodyArr[1]).toHaveLength(250);
       expect(bodyArr[2]).toHaveLength(1);
-      expect(bodyArr[0][0].nombre).toBe('Product 0');
-      expect(bodyArr[2][0].nombre).toBe('Product 500');
+      expect(bodyArr[0]?.[0]?.nombre).toBe('Product 0');
+      expect(bodyArr[2]?.[0]?.nombre).toBe('Product 500');
       expect(result.current.results.creados).toBe(501);
       expect(result.current.results.chunksCompletados).toBe(3);
     });
@@ -211,7 +246,7 @@ describe('useChunkedUpload', () => {
   describe('Task 1.3: Auto-retry logic', () => {
     it('should retry once on failure and continue if retry succeeds', async () => {
       let attemptCount = 0;
-      global.fetch = vi.fn().mockImplementation(async () => {
+      const retryMock = vi.fn().mockImplementation(async () => {
         attemptCount++;
         if (attemptCount === 1) {
           throw new Error('Network error');
@@ -221,6 +256,7 @@ describe('useChunkedUpload', () => {
           json: () => Promise.resolve({ creados: 100, actualizados: 0, errores: 0 })
         };
       });
+      installFetch(retryMock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -237,7 +273,7 @@ describe('useChunkedUpload', () => {
     });
 
     it('should pause upload after double failure', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new Error('Timeout'));
+      installFetch(vi.fn().mockRejectedValue(new Error('Timeout')));
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -249,13 +285,13 @@ describe('useChunkedUpload', () => {
 
       expect(result.current.state).toBe('paused');
       expect(result.current.error).not.toBeNull();
-      expect(result.current.error.chunkIndex).toBe(0);
-      expect(result.current.error.canRetry).toBe(true);
+      expect(result.current.error?.chunkIndex).toBe(0);
+      expect(result.current.error?.canRetry).toBe(true);
     });
 
     it('should only affect the failing chunk on double failure (later chunks not sent)', async () => {
       let callCount = 0;
-      global.fetch = vi.fn().mockRejectedValue(new Error('Timeout'));
+      installFetch(vi.fn().mockRejectedValue(new Error('Timeout')));
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -275,9 +311,9 @@ describe('useChunkedUpload', () => {
   describe('Task 1.4: Cancel via AbortController', () => {
     it('should cancel mid-upload and show partial results', async () => {
       let fetchCount = 0;
-      global.fetch = vi.fn().mockImplementation(async (_url, opts) => {
+      const cancelMock = vi.fn().mockImplementation(async (_url: string, opts?: RequestInit) => {
         fetchCount++;
-        const { signal } = opts || {};
+        const signal = opts?.signal ?? undefined;
         if (fetchCount === 1) {
           // First chunk succeeds
           return {
@@ -301,13 +337,14 @@ describe('useChunkedUpload', () => {
           signal?.addEventListener('abort', onAbort, { once: true });
         });
       });
+      installFetch(cancelMock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
       );
 
       // Start upload (non-blocking await — upload promise will hang on second chunk)
-      let uploadPromise;
+      let uploadPromise: Promise<void> | undefined;
       await act(async () => {
         uploadPromise = result.current.upload(createProducts(500));
       });
@@ -332,16 +369,16 @@ describe('useChunkedUpload', () => {
 
     it('should set cancelled state immediately when cancel called during uploading', async () => {
       // Upload that never resolves
-      global.fetch = vi.fn().mockImplementation(
+      installFetch(vi.fn().mockImplementation(
         () => new Promise(() => {})
-      );
+      ));
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
       );
 
       await act(async () => {
-        result.current.upload(createProducts(500));
+        void result.current.upload(createProducts(500));
       });
 
       await act(async () => {
@@ -356,13 +393,14 @@ describe('useChunkedUpload', () => {
   describe('Task 1.5: Progress calculation', () => {
     it('should update progress after each chunk in multi-chunk upload', async () => {
       let chunkIndex = 0;
-      global.fetch = vi.fn().mockImplementation(async () => {
+      const progressMock = vi.fn().mockImplementation(async () => {
         chunkIndex++;
         return {
           ok: true,
           json: () => Promise.resolve({ creados: 250, actualizados: 0, errores: 0 })
         };
       });
+      installFetch(progressMock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -381,9 +419,9 @@ describe('useChunkedUpload', () => {
 
     it('should show correct intermediate progress during multi-chunk upload', async () => {
       let callCount = 0;
-      global.fetch = vi.fn().mockImplementation(async (_url, opts) => {
+      const intermediateMock = vi.fn().mockImplementation(async (_url: string, opts?: RequestInit) => {
         callCount++;
-        const { signal } = opts || {};
+        const signal = opts?.signal ?? undefined;
         if (callCount === 1) {
           return {
             ok: true,
@@ -405,12 +443,13 @@ describe('useChunkedUpload', () => {
           }, { once: true });
         });
       });
+      installFetch(intermediateMock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
       );
 
-      result.current.upload(createProducts(500));
+      void result.current.upload(createProducts(500));
 
       // After first chunk resolves, check intermediate progress
       await waitFor(() => {
@@ -424,7 +463,7 @@ describe('useChunkedUpload', () => {
       const { mock } = createFetchMock([
         { creados: 50, actualizados: 0, errores: 0 }
       ]);
-      global.fetch = mock;
+      installFetch(mock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -445,7 +484,7 @@ describe('useChunkedUpload', () => {
   describe('retryChunk and skipChunk from paused state', () => {
     it('should retry the same chunk when retryChunk is called', async () => {
       let attempts = 0;
-      global.fetch = vi.fn().mockImplementation(async () => {
+      const retryChunkMock = vi.fn().mockImplementation(async () => {
         attempts++;
         if (attempts <= 2) {
           throw new Error('Timeout'); // initial double failure
@@ -455,6 +494,7 @@ describe('useChunkedUpload', () => {
           json: () => Promise.resolve({ creados: 250, actualizados: 0, errores: 0 })
         };
       });
+      installFetch(retryChunkMock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -477,7 +517,7 @@ describe('useChunkedUpload', () => {
 
     it('should skip the failed chunk and continue when skipChunk is called', async () => {
       let chunkId = 0;
-      global.fetch = vi.fn().mockImplementation(async () => {
+      const skipChunkMock = vi.fn().mockImplementation(async () => {
         chunkId++;
         if (chunkId <= 2) {
           throw new Error('Timeout'); // chunk 0 fails twice
@@ -488,6 +528,7 @@ describe('useChunkedUpload', () => {
           json: () => Promise.resolve({ creados: 250, actualizados: 0, errores: 0 })
         };
       });
+      installFetch(skipChunkMock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -518,7 +559,7 @@ describe('useChunkedUpload', () => {
         { creados: 100, actualizados: 150, errores: 0 },
         { creados: 200, actualizados: 50, errores: 2 }
       ]);
-      global.fetch = mock;
+      installFetch(mock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -537,9 +578,9 @@ describe('useChunkedUpload', () => {
 
     it('should show partial aggregation when cancelled', async () => {
       let fetchCount = 0;
-      global.fetch = vi.fn().mockImplementation(async (_url, opts) => {
+      const partialMock = vi.fn().mockImplementation(async (_url: string, opts?: RequestInit) => {
         fetchCount++;
-        const { signal } = opts || {};
+        const signal = opts?.signal ?? undefined;
         if (fetchCount === 1) {
           return {
             ok: true,
@@ -561,13 +602,14 @@ describe('useChunkedUpload', () => {
           }, { once: true });
         });
       });
+      installFetch(partialMock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
       );
 
       await act(async () => {
-        result.current.upload(createProducts(500));
+        void result.current.upload(createProducts(500));
       });
 
       await waitFor(() => expect(result.current.results.chunksCompletados).toBe(1));
@@ -590,7 +632,7 @@ describe('useChunkedUpload', () => {
       const { mock } = createFetchMock([
         { creados: 5, actualizados: 0, errores: 0 }
       ]);
-      global.fetch = mock;
+      installFetch(mock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -617,7 +659,7 @@ describe('useChunkedUpload', () => {
   describe('Edge cases', () => {
     it('should not make any fetch calls when products array is empty', async () => {
       const { mock } = createFetchMock([]);
-      global.fetch = mock;
+      installFetch(mock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -639,7 +681,7 @@ describe('useChunkedUpload', () => {
       const { mock } = createFetchMock([
         { creados: 1, actualizados: 0, errores: 0 }
       ]);
-      global.fetch = mock;
+      installFetch(mock);
 
       const { result } = renderHook(() =>
         useChunkedUpload({ apiUrl: API_URL, headers: HEADERS })
@@ -659,8 +701,8 @@ describe('useChunkedUpload', () => {
       );
 
       // Verify body structure
-      const callArg = global.fetch.mock.calls[0][1];
-      const parsedBody = JSON.parse(callArg.body);
+      const callArg = mock.mock.calls[0]?.[1];
+      const parsedBody = JSON.parse(String(callArg?.body)) as BulkBody;
       expect(parsedBody).toHaveProperty('productos');
       expect(parsedBody.productos).toHaveLength(1);
     });
