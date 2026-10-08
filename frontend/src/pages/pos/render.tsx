@@ -7,6 +7,7 @@ import { C, NAV_ITEMS, METODOS_PAGO, fmt, now, type CartItem, type VentaFront, t
 import { Sidebar, ModalPago, TicketVenta, ModuloPendiente } from './components';
 import { usePOSLogic } from './logic';
 import Stock from '../Stock';
+import Reportes from '../Reportes';
 import type { FC, ChangeEvent, KeyboardEvent, FocusEvent, MouseEvent } from 'react';
 
 // ============================================================
@@ -354,7 +355,7 @@ export default function MainApp() {
       case 'stock': return <Stock />;
       case 'caja': return <ModuloPendiente nombre="Cierre de Caja" />;
       case 'productos': return <ModuloPendiente nombre="Productos" />;
-      case 'reportes': return <ModuloPendiente nombre="Reportes" />;
+      case 'reportes': return <Reportes />;
       case 'ventas': return <ModuloPendiente nombre="Ventas" />;
       case 'usuarios': return <ModuloPendiente nombre="Usuarios" />;
       case 'audit': return <ModuloPendiente nombre="Auditoría" />;
