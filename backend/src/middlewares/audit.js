@@ -5,6 +5,11 @@ const prisma = require('../lib/prisma')
  * Logs all API actions to AuditLog table without waiting for DB response
  */
 const auditMiddleware = (req, res, next) => {
+  // Skip audit logging in test environment
+  if (process.env.NODE_ENV === 'test') {
+    return next()
+  }
+  
   // Capture original send to log after response is sent
   const originalSend = res.send
   
