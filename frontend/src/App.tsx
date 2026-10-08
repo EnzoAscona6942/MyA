@@ -1,22 +1,34 @@
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Component } from 'react';
 import Login from './pages/Login';
 import MainApp from './pages/POS';
 
-// Error Boundary para capturar errores de renderizado
-class ErrorBoundary extends Component {
-  constructor(props) {
+// ── Error Boundary para capturar errores de renderizado ───────
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
-  static getDerivedStateFromError(error) {
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
-  componentDidCatch(error, info) {
+
+  override componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('React Error Boundary:', error, info);
   }
-  render() {
+
+  override render(): ReactNode {
     if (this.state.hasError) {
       return (
         <div style={{ padding: 40, fontFamily: 'monospace' }}>
@@ -35,7 +47,7 @@ class ErrorBoundary extends Component {
   }
 }
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children }: { children: ReactNode }) {
   const { token, loading } = useAuth();
   if (loading) return null; // o un spinner
   if (!token) return <Navigate to="/login" replace />;
