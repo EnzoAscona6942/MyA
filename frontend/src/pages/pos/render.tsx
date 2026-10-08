@@ -8,6 +8,8 @@ import { Sidebar, ModalPago, TicketVenta, ModuloPendiente } from './components';
 import { usePOSLogic } from './logic';
 import Stock from '../Stock';
 import Reportes from '../Reportes';
+import Ventas from '../Ventas';
+import AuditLog from '../AuditLog';
 import type { FC, ChangeEvent, KeyboardEvent, FocusEvent, MouseEvent } from 'react';
 
 // ============================================================
@@ -356,9 +358,9 @@ export default function MainApp() {
       case 'caja': return <ModuloPendiente nombre="Cierre de Caja" />;
       case 'productos': return <ModuloPendiente nombre="Productos" />;
       case 'reportes': return <Reportes />;
-      case 'ventas': return <ModuloPendiente nombre="Ventas" />;
+      case 'ventas': return <Ventas />;
       case 'usuarios': return <ModuloPendiente nombre="Usuarios" />;
-      case 'audit': return <ModuloPendiente nombre="Auditoría" />;
+      case 'audit': return <AuditLog />;
       default: return <POS />;
     }
   };
