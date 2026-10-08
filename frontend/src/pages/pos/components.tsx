@@ -305,14 +305,3 @@ export const TicketVenta: FC<TicketVentaProps> = ({ venta, onNuevaVenta }) => {
     </div>
   );
 };
-// Placeholder temporal para modulos aun no migrados a TS.
-interface ModuloPendienteProps {
-  nombre: string;
-}
-
-export const ModuloPendiente: FC<ModuloPendienteProps> = ({ nombre }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, height: '100%', color: '#A1A1AA', fontFamily: "'DM Mono', monospace" }}>
-    <h2 style={{ fontSize: 20, fontWeight: 700, color: '#171717', margin: 0 }}>{nombre}</h2>
-    <p style={{ fontSize: 13, margin: 0 }}>Modulo en desarrollo</p>
-  </div>
-);

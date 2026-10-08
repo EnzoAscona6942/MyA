@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { C, NAV_ITEMS, METODOS_PAGO, fmt, now, type CartItem, type VentaFront, type ModalType, type MetodoPago } from './index';
-import { Sidebar, ModalPago, TicketVenta, ModuloPendiente } from './components';
+import { Sidebar, ModalPago, TicketVenta } from './components';
 import { usePOSLogic } from './logic';
 import Stock from '../Stock';
 import Reportes from '../Reportes';
@@ -12,6 +12,7 @@ import Ventas from '../Ventas';
 import AuditLog from '../AuditLog';
 import CierreCaja from '../CierreCaja';
 import Usuarios from '../Usuarios';
+import Productos from '../Productos';
 import type { FC, ChangeEvent, KeyboardEvent, FocusEvent, MouseEvent } from 'react';
 
 // ============================================================
@@ -358,7 +359,7 @@ export default function MainApp() {
       case 'pos': return <POS />;
       case 'stock': return <Stock />;
       case 'caja': return <CierreCaja />;
-      case 'productos': return <ModuloPendiente nombre="Productos" />;
+      case 'productos': return <Productos />;
       case 'reportes': return <Reportes />;
       case 'ventas': return <Ventas />;
       case 'usuarios': return <Usuarios />;
