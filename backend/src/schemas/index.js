@@ -48,6 +48,16 @@ const productoSchema = z.object({
 const productoCreateSchema = productoSchema
 const productoUpdateSchema = productoSchema.partial()
 
+// Path param del lookup contra Open Food Facts. Sólo dígitos, 8 a 14: es la
+// forma de los EAN/UPC reales. Validar en el borde es lo que garantiza que un
+// código inválido nunca llegue a gastar una consulta del upstream.
+const codigoBarrasParamSchema = z.object({
+  codigo: z.string().regex(
+    /^\d{8,14}$/,
+    'El código de barras debe tener entre 8 y 14 dígitos'
+  )
+})
+
 // ── Ventas ───────────────────────────────────────────────────
 const ventaItemSchema = z.object({
   productoId: positiveInt,
@@ -135,6 +145,7 @@ module.exports = {
   productoSchema,
   productoCreateSchema,
   productoUpdateSchema,
+  codigoBarrasParamSchema,
   // Ventas
   ventaItemSchema,
   ventaSchema,

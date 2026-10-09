@@ -1,6 +1,9 @@
 const express = require('express')
 const prisma = require('../lib/prisma')
 const { authMiddleware, soloAdmin } = require('../middlewares/auth')
+const { validateParams } = require('../middlewares/validate')
+const { codigoBarrasParamSchema } = require('../schemas')
+const productos = require('../services').productos
 const { body, param, validationResult } = require('express-validator')
 
 const router = express.Router()
@@ -125,6 +128,26 @@ router.get('/barras/:codigo', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al buscar producto' })
   }
 })
+
+// GET /api/productos/barras/:codigo/openfoodfacts — resolver el nombre desde Open Food Facts
+//
+// Este endpoint NO propaga fallos del upstream: `consultarOpenFoodFacts` degrada
+// a `{ found: false }`, que es la respuesta correcta para un producto que Open
+// Food Facts no conoce (panadería, granel, productos locales). La rama 503 es
+// únicamente una red de seguridad para un fallo que impida responder.
+router.get('/barras/:codigo/openfoodfacts',
+  authMiddleware,
+  validateParams(codigoBarrasParamSchema),
+  async (req, res) => {
+    try {
+      const resultado = await productos.consultarOpenFoodFacts(req.params.codigo)
+      res.json(resultado)
+    } catch (err) {
+      console.error('Error al consultar Open Food Facts:', err)
+      res.status(503).json({ error: 'No se pudo consultar Open Food Facts' })
+    }
+  }
+)
 
 // GET /api/productos/:id
 router.get('/:id', authMiddleware, async (req, res) => {

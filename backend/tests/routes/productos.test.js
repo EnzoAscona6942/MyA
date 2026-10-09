@@ -218,3 +218,126 @@ describe('DELETE /api/productos/:id', () => {
     expect(response.status).toBe(404)
   })
 })
+
+/**
+ * Barcode name lookup against Open Food Facts.
+ *
+ * These run the REAL service with `fetch` replaced, so the route -> service ->
+ * upstream path is covered end to end. The contract that matters: an unknown
+ * barcode is a 200 with `found: false`, never an error.
+ */
+describe('GET /api/productos/barras/:codigo/openfoodfacts', () => {
+  const { productos: productosService } = require('../../src/services')
+
+  let adminToken
+  let fetchSpy
+
+  const jsonResponse = (body, { ok = true, status = 200 } = {}) => ({
+    ok,
+    status,
+    json: async () => body
+  })
+
+  beforeEach(() => {
+    resetMockPrisma(prisma)
+    productosService.resetCache()
+    adminToken = generateTestToken({ id: 1, nombre: 'Admin User', rol: 'ADMIN' })
+    fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+      jsonResponse({ code: '3017620422003', product: { product_name: 'Nutella' } })
+    )
+  })
+
+  afterEach(() => {
+    fetchSpy.mockRestore()
+    jest.restoreAllMocks()
+    productosService.resetCache()
+  })
+
+  test('devuelve 200 con el nombre cuando Open Food Facts conoce el código', async () => {
+    const response = await request(app)
+      .get('/api/productos/barras/3017620422003/openfoodfacts')
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      codigoBarras: '3017620422003',
+      found: true,
+      nombre: 'Nutella'
+    })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  test('devuelve 200 con found:false cuando Open Food Facts no conoce el código', async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ code: '7791234567890', status: 0 }, { ok: false, status: 404 })
+    )
+
+    const response = await request(app)
+      .get('/api/productos/barras/7791234567890/openfoodfacts')
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    // Un producto ausente es un caso NORMAL, no un error.
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      codigoBarras: '7791234567890',
+      found: false,
+      nombre: null
+    })
+  })
+
+  test('devuelve 200 con found:false cuando el upstream se cae', async () => {
+    fetchSpy.mockRejectedValue(new TypeError('fetch failed'))
+
+    const response = await request(app)
+      .get('/api/productos/barras/7791234567891/openfoodfacts')
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body.found).toBe(false)
+    expect(response.body.nombre).toBeNull()
+  })
+
+  test('rechaza un código inválido con 400 sin tocar la red', async () => {
+    const response = await request(app)
+      .get('/api/productos/barras/1234567/openfoodfacts')
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(response.status).toBe(400)
+    expect(response.body.error).toContain('parámetros')
+    expect(response.body.details[0].field).toBe('codigo')
+    // Un código inválido no puede gastarse una consulta del upstream.
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  test('rechaza un código con letras con 400', async () => {
+    const response = await request(app)
+      .get('/api/productos/barras/abcd1234efgh/openfoodfacts')
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(response.status).toBe(400)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  test('exige autenticación', async () => {
+    const response = await request(app).get('/api/productos/barras/3017620422003/openfoodfacts')
+
+    expect(response.status).toBe(401)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  test('responde 503 si el servicio llegara a fallar de forma inesperada', async () => {
+    // El service degrada todo a `found: false`, así que esta rama es sólo una
+    // red de seguridad: cubre un fallo que impide siquiera responder.
+    jest.spyOn(console, 'error').mockImplementation(() => {})
+    jest
+      .spyOn(productosService, 'consultarOpenFoodFacts')
+      .mockRejectedValue(new Error('boom'))
+
+    const response = await request(app)
+      .get('/api/productos/barras/3017620422003/openfoodfacts')
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(response.status).toBe(503)
+    expect(response.body.error).toContain('Open Food Facts')
+  })
+})
