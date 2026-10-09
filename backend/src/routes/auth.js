@@ -1,119 +1,85 @@
+// ============================================================
+// AUTH ROUTES — REFACTORIZADA
+// ============================================================
+
 const express = require('express')
-const bcrypt = require('bcryptjs')
-const jwt = require('jsonwebtoken')
-const prisma = require('../lib/prisma')
-const { authMiddleware } = require('../middlewares/auth')
-const { body, validationResult } = require('express-validator')
+const auth = require('../services')
+const { validate, validateParams } = require('../middlewares/validate')
+const { asyncHandler } = require('../utils/errors')
+const { loginSchema, registerSchema, idParamSchema } = require('../schemas')
+const { authMiddleware, soloAdmin } = require('../middlewares/auth')
+const { authLimiter } = require('../middlewares/rateLimiter')
 
 const router = express.Router()
 
-// Validation middleware
-const validate = (req, res, next) => {
-  const errors = validationResult(req)
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      error: 'Error de validación',
-      details: errors.array().map(err => ({
-        field: err.path,
-        message: err.msg
-      }))
-    })
-  }
-  next()
-}
-
-// POST /api/auth/login
+/**
+ * POST /api/auth/login
+ */
 router.post('/login',
-  [
-    body('email').isEmail().withMessage('El email debe ser válido'),
-    body('password').notEmpty().withMessage('El password es requerido')
-  ],
-  validate,
-  async (req, res) => {
-  const { email, password } = req.body
+  authLimiter,
+  validate(loginSchema),
+  asyncHandler(async (req, res) => {
+    const { email, password } = req.body
+    const { token, refreshToken, usuario } = await auth.auth.login({ email, password })
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email y password requeridos' })
-  }
-
-  try {
-    const usuario = await prisma.usuario.findUnique({ where: { email } })
-
-    if (!usuario || !usuario.activo) {
-      return res.status(401).json({ error: 'Credenciales inválidas' })
-    }
-
-    const passwordValido = await bcrypt.compare(password, usuario.password)
-    if (!passwordValido) {
-      return res.status(401).json({ error: 'Credenciales inválidas' })
-    }
-
-    const token = jwt.sign(
-      { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol },
-      process.env.JWT_SECRET,
-      { expiresIn: '12h' }
-    )
-
-    res.json({
+    res.status(200).json({
       token,
-      usuario: {
-        id: usuario.id,
-        nombre: usuario.nombre,
-        email: usuario.email,
-        rol: usuario.rol
-      }
+      refreshToken,
+      usuario
     })
-  } catch (err) {
-    res.status(500).json({ error: 'Error interno del servidor' })
-  }
-})
+  })
+)
 
-// GET /api/auth/me
-router.get('/me', authMiddleware, async (req, res) => {
-  try {
-    const usuario = await prisma.usuario.findUnique({
-      where: { id: req.usuario.id },
-      select: { id: true, nombre: true, email: true, rol: true }
-    })
-    res.json(usuario)
-  } catch (err) {
-    res.status(500).json({ error: 'Error interno del servidor' })
-  }
-})
-
-// POST /api/auth/register (solo ADMIN puede crear usuarios)
-router.post('/register',
+/**
+ * GET /api/auth/me
+ */
+router.get('/me',
   authMiddleware,
-  [
-    body('nombre').notEmpty().withMessage('El nombre es requerido'),
-    body('email').isEmail().withMessage('El email debe ser válido'),
-    body('password').isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres'),
-    body('rol').optional().isIn(['ADMIN', 'CAJERO']).withMessage('El rol debe ser ADMIN o CAJERO')
-  ],
-  validate,
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
+    const usuario = await auth.auth.getProfile({ userId: req.usuario.id })
+    res.status(200).json(usuario)
+  })
+)
+
+/**
+ * POST /api/auth/register (solo ADMIN)
+ */
+router.post('/register',
+  authLimiter,
+  validate(registerSchema),
+  asyncHandler(async (req, res) => {
     if (req.usuario.rol !== 'ADMIN') {
       return res.status(403).json({ error: 'Solo el administrador puede crear usuarios' })
     }
 
     const { nombre, email, password, rol } = req.body
+    const usuario = await auth.auth.register({ nombre, email, password, rol })
 
-    try {
-    const existe = await prisma.usuario.findUnique({ where: { email } })
-    if (existe) {
-      return res.status(400).json({ error: 'El email ya está registrado' })
+    res.status(201).json({
+      mensaje: 'Usuario creado exitosamente',
+      usuario
+    })
+  })
+)
+
+/**
+ * POST /api/auth/refresh - Renovar token
+ */
+router.post('/refresh',
+  asyncHandler(async (req, res) => {
+    const { refreshToken } = req.body
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token requerido' })
     }
 
-    const hash = await bcrypt.hash(password, 10)
-    const usuario = await prisma.usuario.create({
-      data: { nombre, email, password: hash, rol: rol || 'CAJERO' },
-      select: { id: true, nombre: true, email: true, rol: true }
-    })
+    const { token, refreshToken: newRefreshToken, usuario } = await auth.auth.refreshToken(refreshToken)
 
-    res.status(201).json(usuario)
-  } catch (err) {
-    res.status(500).json({ error: 'Error interno del servidor' })
-  }
-})
+    res.status(200).json({
+      token,
+      refreshToken: newRefreshToken,
+      usuario
+    })
+  })
+)
 
 module.exports = router

@@ -16,6 +16,10 @@ const auditRoutes = require('./routes/audit')
 // Middlewares
 const { authLimiter, ventasLimiter, apiLimiter } = require('./middlewares/rateLimiter')
 const { auditMiddleware } = require('./middlewares/audit')
+const { errorHandler } = require('./utils/errors')
+
+// Swagger
+const { swaggerSpec, swaggerUi } = require('./config/swagger')
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -27,6 +31,16 @@ app.use(cors({
   credentials: true
 }))
 app.use(express.json({ limit: '10mb' }))
+
+// ── Swagger Documentation ─────────────────────────────────────
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'MyA Minimercado API Docs'
+}))
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json')
+  res.send(swaggerSpec)
+})
 
 // ── Audit logging (non-blocking) ──────────────────────────────
 app.use(auditMiddleware)
@@ -58,10 +72,7 @@ app.use((req, res) => {
 })
 
 // ── Error handler global ─────────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error(err.stack)
-  res.status(500).json({ error: 'Error interno del servidor' })
-})
+app.use(errorHandler)
 
 // Only start server if this file is run directly (not required as module)
 // This allows tests to import app without starting the server
@@ -69,6 +80,8 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`✅ MyA Backend corriendo en http://localhost:${PORT}`)
     console.log(`📋 Health check: http://localhost:${PORT}/api/health`)
+    console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`)
+    console.log(`📄 Spec JSON: http://localhost:${PORT}/api-docs.json`)
   })
 }
 

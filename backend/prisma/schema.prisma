@@ -102,6 +102,11 @@ model Producto {
   ventaItems      VentaItem[]
   ingresoItems    IngresoStockItem[]
 
+  @@index([activo, stock, stockMinimo])           // stock bajo: WHERE activo AND stock <= stockMinimo
+  @@index([activo, categoriaId])                  // filtro por categoría
+  @@index([activo, nombre])                       // búsqueda por nombre
+  @@index([activo, codigoBarras])                 // búsqueda por código de barras (no único)
+  @@index([activo, codigoInterno])                // búsqueda por código interno (no único)
   @@map("productos")
 }
 
@@ -124,6 +129,9 @@ model Caja {
   ventas          Venta[]
   movimientos     MovimientoCaja[]
 
+  @@index([estado])                                // buscar caja activa
+  @@index([fechaApertura])                         // historial por fecha
+  @@index([usuarioId, fechaApertura])              // cajas por usuario
   @@map("cajas")
 }
 
@@ -146,6 +154,8 @@ model MovimientoCaja {
   cajaId      Int
   caja        Caja             @relation(fields: [cajaId], references: [id])
 
+  @@index([cajaId, tipo])                        // movimientos por caja y tipo
+  @@index([cajaId, fecha])                       // historial por fecha
   @@map("movimientos_caja")
 }
 
@@ -178,6 +188,10 @@ model Venta {
 
   items           VentaItem[]
 
+  @@index([cajaId, estado, fecha])                // ventas por caja con estado y fecha
+  @@index([fecha])                                 // filtro por rango de fechas
+  @@index([cajaId])                                // ventas por caja
+  @@index([usuarioId, fecha])                      // ventas por usuario
   @@map("ventas")
 }
 
@@ -211,6 +225,8 @@ model VentaItem {
   productoId      Int
   producto        Producto  @relation(fields: [productoId], references: [id])
 
+  @@index([ventaId])                               // items por venta
+  @@index([productoId, ventaId])                   // ventas de un producto
   @@map("venta_items")
 }
 
@@ -230,6 +246,8 @@ model IngresoStock {
 
   items           IngresoStockItem[]
 
+  @@index([fecha])                                 // historial por fecha
+  @@index([proveedorId, fecha])                    // ingresos por proveedor
   @@map("ingresos_stock")
 }
 

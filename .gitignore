@@ -32,3 +32,12 @@ yarn-error.log*
 
 # OS
 Thumbs.db
+# TypeScript
+*.tsbuildinfo
+
+# Agent tooling caches
+.atl/*.cache.json
+backend/skills-lock.json
+
+# Manual fixture used to try the CSV bulk upload
+frontend/test.csv
