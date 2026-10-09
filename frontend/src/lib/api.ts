@@ -38,7 +38,9 @@ export const api: ApiClient = {
       : '';
 
     const res = await fetch(`${API_URL}${url}${searchParams}`, {
-      headers: getHeaders()
+      headers: getHeaders(),
+      // Pass-through: lets the caller cancel an in-flight GET via AbortController.
+      signal: options?.signal
     });
     return handleResponse<T>(res);
   },

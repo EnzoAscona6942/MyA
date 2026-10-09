@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { api, getHeaders, API_URL } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useChunkedUpload } from '../hooks/useChunkedUpload';
@@ -88,6 +88,34 @@ interface ErrorLike {
 const asErrorLike = (e: unknown): ErrorLike =>
   typeof e === 'object' && e !== null ? (e as ErrorLike) : { message: String(e) };
 
+// ── Lookup de nombre por código de barras (Open Food Facts) ────────
+
+/**
+ * Respuesta de `GET /productos/barras/:codigo/openfoodfacts`.
+ * `found: false` es un resultado normal (panadería, granel, productos locales),
+ * nunca un error: el operador escribe el nombre a mano en ese caso.
+ */
+interface RespuestaOpenFoodFacts {
+  codigoBarras: string;
+  found: boolean;
+  nombre: string | null;
+}
+
+/** Estados de la línea de feedback bajo el input de código de barras. */
+type LookupEstado = 'idle' | 'buscando' | 'encontrado' | 'no-encontrado' | 'error';
+
+const LOOKUP_DEBOUNCE_MS = 400;
+
+/** Código de barras válido: 8 a 14 dígitos, la forma de un EAN/UPC real. */
+const CODIGO_BARRAS_VALIDO = /^\d{8,14}$/;
+
+/**
+ * Un lector USB de códigos de barras teclea el código y manda Enter al
+ * terminar, así que ese es el disparador real; el debounce es sólo el respaldo
+ * para cuando el operador lo carga a mano.
+ */
+const soloDigitos = (valor: string): string => valor.replace(/\D/g, '');
+
 /** `categoria` llega como objeto en el formato actual y como string en el legacy. */
 const nombreCategoria = (categoria: Categoria | string | null | undefined): string => {
   if (!categoria) return '-';
@@ -140,6 +168,129 @@ export default function Productos() {
   const [formData, setFormData] = useState<ProductoForm>(initialForm);
   const [formError, setFormError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
+
+  // ── Lookup Open Food Facts ──
+  const [lookupEstado, setLookupEstado] = useState<LookupEstado>('idle');
+  const [lookupNombre, setLookupNombre] = useState<string>('');
+  // Espejo de `formData.nombre`: la búsqueda se dispara desde un efecto que
+  // sólo depende del código, así que no puede cerrar sobre el nombre.
+  const nombreRef = useRef<string>('');
+  const lookupAbortRef = useRef<AbortController | null>(null);
+  const lookupTimerRef = useRef<number | null>(null);
+  // Cada búsqueda corre con un número de secuencia: una respuesta que tarda
+  // más que la siguiente no puede pisar el resultado del código más nuevo.
+  const lookupSeqRef = useRef<number>(0);
+
+  useEffect(() => {
+    nombreRef.current = formData.nombre;
+  }, [formData.nombre]);
+
+  /** Cancela la petición en vuelo y el debounce pendiente. */
+  const cancelarLookup = (): void => {
+    if (lookupTimerRef.current !== null) {
+      window.clearTimeout(lookupTimerRef.current);
+      lookupTimerRef.current = null;
+    }
+    lookupAbortRef.current?.abort();
+    lookupAbortRef.current = null;
+    // Invalida cualquier respuesta que ya esté en camino.
+    lookupSeqRef.current += 1;
+  };
+
+  const buscarNombreOpenFoodFacts = async (codigoBruto: string): Promise<void> => {
+    const codigo = soloDigitos(codigoBruto);
+
+    cancelarLookup();
+    if (!CODIGO_BARRAS_VALIDO.test(codigo)) {
+      setLookupEstado('idle');
+      return;
+    }
+
+    // Nunca pisa un nombre que el operador ya escribió.
+    if (nombreRef.current.trim() !== '') {
+      setLookupEstado('idle');
+      return;
+    }
+
+    const controller = new AbortController();
+    lookupAbortRef.current = controller;
+    const seq = lookupSeqRef.current;
+    setLookupEstado('buscando');
+
+    try {
+      const res = await api.get<RespuestaOpenFoodFacts>(
+        `/productos/barras/${codigo}/openfoodfacts`,
+        { signal: controller.signal }
+      );
+
+      // Respuesta de un código viejo: se descarta.
+      if (lookupSeqRef.current !== seq) return;
+
+      const nombre = res.nombre;
+      if (res.found && nombre) {
+        setFormData(prev => ({ ...prev, nombre }));
+        setLookupNombre(nombre);
+        setLookupEstado('encontrado');
+      } else {
+        setLookupNombre('');
+        setLookupEstado('no-encontrado');
+      }
+    } catch (e: unknown) {
+      if (lookupSeqRef.current !== seq) return;
+      // Una cancelación es esperada, no un fallo que haya que mostrar.
+      if (asErrorLike(e).name === 'AbortError') return;
+      setLookupNombre('');
+      setLookupEstado('error');
+    }
+  };
+
+  // Debounce sobre el código. La dependencia es sólo `codigoBarras`: si
+  // dependiera también de `nombre`, el autocompletado volvería a disparar la
+  // búsqueda y podría preguntar por el mismo código otra vez.
+  useEffect(() => {
+    if (!CODIGO_BARRAS_VALIDO.test(soloDigitos(formData.codigoBarras))) {
+      cancelarLookup();
+      setLookupEstado('idle');
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      lookupTimerRef.current = null;
+      void buscarNombreOpenFoodFacts(formData.codigoBarras);
+    }, LOOKUP_DEBOUNCE_MS);
+    lookupTimerRef.current = timer;
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.codigoBarras]);
+
+  /** El Enter del lector dispara la búsqueda sin esperar el debounce. */
+  const handleCodigoBarrasKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key !== 'Enter') return;
+    // Evita que el Enter envíe el formulario entero.
+    e.preventDefault();
+    void buscarNombreOpenFoodFacts(formData.codigoBarras);
+  };
+
+  const lookupMensaje = (() => {
+    switch (lookupEstado) {
+      case 'buscando':
+        return { texto: 'Buscando en Open Food Facts...', color: C.textMid };
+      case 'encontrado':
+        return { texto: `Encontrado: ${lookupNombre}`, color: C.accent };
+      case 'no-encontrado':
+        return { texto: 'No figura en Open Food Facts. Cargá el nombre a mano.', color: C.amber };
+      case 'error':
+        return {
+          texto: 'No se pudo consultar Open Food Facts. Cargá el nombre a mano.',
+          color: C.danger
+        };
+      default:
+        return null;
+    }
+  })();
 
   // ── INIT ──
   useEffect(() => {
@@ -292,6 +443,9 @@ export default function Productos() {
     setEditingId(null);
     setFormData(initialForm);
     setFormError('');
+    cancelarLookup();
+    setLookupEstado('idle');
+    setLookupNombre('');
     setShowModal(true);
   };
 
@@ -308,7 +462,19 @@ export default function Productos() {
       categoriaId: p.categoriaId != null ? String(p.categoriaId) : ''
     });
     setFormError('');
+    cancelarLookup();
+    setLookupEstado('idle');
+    setLookupNombre('');
     setShowModal(true);
+  };
+
+  const handleCloseModal = (): void => {
+    // Cancelar la consulta en vuelo: si llegara después, escribiría el nombre
+    // en un formulario que el operador ya cerró.
+    cancelarLookup();
+    setLookupEstado('idle');
+    setLookupNombre('');
+    setShowModal(false);
   };
 
   const handleDelete = async (id: number, nombre: string): Promise<void> => {
@@ -631,7 +797,12 @@ export default function Productos() {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: C.textMid, marginBottom: 6 }}>Código de Barras</label>
-                  <input type="text" name="codigoBarras" value={formData.codigoBarras} onChange={handleChange} placeholder="Escaneá acá..." style={{ width: "100%", padding: "10px", borderRadius: 0, border: `1px solid ${C.border}`, outline: "none", fontFamily: "inherit" }} />
+                  <input type="text" name="codigoBarras" value={formData.codigoBarras} onChange={handleChange} onKeyDown={handleCodigoBarrasKeyDown} inputMode="numeric" placeholder="Escaneá acá..." style={{ width: "100%", padding: "10px", borderRadius: 0, border: `1px solid ${C.border}`, outline: "none", fontFamily: "inherit" }} />
+                  {lookupMensaje && (
+                    <div role="status" style={{ marginTop: 6, fontSize: 11, lineHeight: 1.4, color: lookupMensaje.color }}>
+                      {lookupMensaje.texto}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -663,7 +834,7 @@ export default function Productos() {
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 32, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-                <button type="button" onClick={() => setShowModal(false)} style={{ padding: "12px 20px", borderRadius: 0, border: `1px solid ${C.border}`, background: C.white, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>
+                <button type="button" onClick={handleCloseModal} style={{ padding: "12px 20px", borderRadius: 0, border: `1px solid ${C.border}`, background: C.white, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>
                   Cancelar
                 </button>
                 <button type="submit" style={{ padding: "12px 24px", borderRadius: 0, border: "none", background: C.text, color: "#fff", cursor: "pointer", fontWeight: 700, fontFamily: "inherit", transition: "opacity 0.2s" }} onMouseEnter={e => e.currentTarget.style.opacity = "0.8"} onMouseLeave={e => e.currentTarget.style.opacity = "1"}>
