@@ -66,6 +66,13 @@ export default function CierreCaja() {
     setLoading(true);
     try {
       const data = await api.get<CajaActiva>('/caja/activa');
+      // Sin esta guarda, un null TYPEado como CajaActiva rompe en data.id y
+      // el catch la convierte en "no hay caja abierta" tapando el error real.
+      if (!data) {
+        setCajaData(null);
+        localStorage.removeItem('cajaId');
+        return;
+      }
       setCajaData(data);
       if (!cajaActiva) {
         setCajaActiva(data.id);

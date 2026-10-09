@@ -116,7 +116,7 @@ export default function AuditLog() {
 
       if (Array.isArray(response)) {
         setAuditLogs(response);
-        setPagination({ page: 1, limit: DEFAULT_PAGE_SIZE, total: response.length, totalPages: 1 });
+        setPagination({ page: 1, limit: DEFAULT_PAGE_SIZE, total: response.length, totalPages: response.length > 0 ? 1 : 0 });
       } else {
         setAuditLogs(response.data || []);
         setPagination(response.meta || { page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 0 });

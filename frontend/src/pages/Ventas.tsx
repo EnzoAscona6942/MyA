@@ -73,7 +73,7 @@ export default function Ventas() {
       // Handle both old format (array) and new format ({ data, pagination })
       if (Array.isArray(response)) {
         setVentas(response);
-        setPagination({ page: 1, limit: DEFAULT_PAGE_SIZE, total: response.length, totalPages: 1 });
+        setPagination({ page: 1, limit: DEFAULT_PAGE_SIZE, total: response.length, totalPages: response.length > 0 ? 1 : 0 });
       } else {
         setVentas(response.data || []);
         setPagination(response.pagination || { page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 0 });
