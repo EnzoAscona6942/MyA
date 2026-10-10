@@ -10,15 +10,13 @@
 // third-party origin for first paint instead of vendored binaries.
 
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
-// Vitest runs with cwd set to the `frontend` package root, so every
-// path below is resolved against it. `import.meta.url` is unusable
-// here: under the jsdom environment it is an http URL, not a file one.
-const frontendRoot = process.cwd();
+import { fixturePath, readFixture } from './posTestRoot';
 
-const read = (relativePath: string): string =>
-  readFileSync(resolve(frontendRoot, relativePath), 'utf8');
+// Fixture paths resolve against the package root located by the harness,
+// not against `process.cwd()`: a runner started from the monorepo root
+// used to turn every assertion below into an ENOENT.
+const read = readFixture;
 
 const INDEX_HTML = 'index.html';
 const INDEX_CSS = 'src/index.css';
@@ -78,7 +76,7 @@ describe('POS webfonts and animations', () => {
 
     it('vendors every woff2 file on disk with the wOF2 signature', () => {
       for (const { file } of FONT_FILES) {
-        const path = resolve(frontendRoot, PUBLIC_FONTS, file);
+        const path = fixturePath(PUBLIC_FONTS, file);
         expect(existsSync(path)).toBe(true);
         const bytes = readFileSync(path);
         expect(bytes.length).toBeGreaterThan(1000);
@@ -121,13 +119,29 @@ describe('POS webfonts and animations', () => {
     });
 
     it('never hardcodes a font family on the body', () => {
-      expect(read(INDEX_CSS)).not.toMatch(/body\s*\{[^}]*font-family:\s*'/);
+      // The body must take its stack from the custom property, so *any*
+      // other value on `font-family` is a regression. Matching the value
+      // rather than a quote character is what makes this hold for double
+      // quotes and for spacing before the colon: the previous form only
+      // rejected a single-quoted literal sitting right after the colon.
+      const css = read(INDEX_CSS);
+      const bodyRule = /body\s*\{([^}]*)\}/.exec(css)?.[1];
+      expect(bodyRule).toBeDefined();
+
+      const families = [...(bodyRule ?? '').matchAll(/font-family\s*:\s*([^;]+);/g)]
+        .map(([, value]) => (value ?? '').trim())
+        .filter((value) => value.length > 0);
+
+      // Non-vacuity: the body does declare a family, so a hardcoded one
+      // would be caught rather than skipped.
+      expect(families.length).toBeGreaterThan(0);
+      expect(families.filter((value) => !value.startsWith('var(--font-sans'))).toEqual([]);
     });
   });
 
   describe('pages/pos/styles.ts', () => {
     it('no longer exists', () => {
-      expect(existsSync(resolve(frontendRoot, DEAD_STYLES_MODULE))).toBe(false);
+      expect(existsSync(fixturePath(DEAD_STYLES_MODULE))).toBe(false);
     });
   });
 });

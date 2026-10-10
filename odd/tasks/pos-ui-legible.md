@@ -215,6 +215,40 @@ Roughly 250-300 authored changed lines across the four work units — under the
   only rejects a single-quoted literal directly after the colon; double quotes or
   extra whitespace satisfy it.
 
+### WU5 — Close the review's test guard gaps — DONE
+
+- Route: **delegated** (one writer, `gentle-ai-worker`).
+- **90 → 101 tests** across 13 → 14 files. Nothing deleted, skipped or weakened.
+- Every gap closed with an observed **RED proof**: the guard was broken on
+  purpose, the failure recorded, and the file restored byte-identical.
+  - Wiring: removing the `./pos/pos.css` import from `POS.tsx` fails only the
+    wiring assertion while the `@keyframes`-exist assertions stay green — which
+    is exactly the blind spot. A triangulation case with an invented animation
+    name also fails.
+  - Scale: a `fontSize: 13` literal fails; so does `fontFamily: "'DM Mono'"`; so
+    does referencing a token `types.ts` does not declare.
+  - Body guard: a double-quoted `font-family` in the `body` rule fails, and the
+    **old** guard was replayed against that same break to confirm it would have
+    passed — proving the replacement is genuinely stronger.
+- Every negative assertion carries a non-vacuity check first, so a broken regex
+  cannot read as a passing guard. The `transition:`-vs-`animation:` extraction
+  hazard has its own self-test on a synthetic snippet.
+- Root resolution moved to `src/__tests__/posTestRoot.ts`: a marker-file walk
+  over `vite.config.js` + `package.json`, searching up *and* down from three
+  anchors, throwing the list of directories it probed instead of a bare ENOENT.
+- **Parent corrected the review's premise.** `R3-test-cwd-root` asserted that
+  `import.meta.url` is unusable under jsdom. The worker measured it instead of
+  assuming: on Vitest 3.2.7 both `import.meta.dirname` and a `file:` 
+  `import.meta.url` resolve correctly and the http behaviour does **not**
+  reproduce. The resolver still guards with a `file:` check because it is free,
+  but the parent reworded a comment that had stated the disproved claim as fact.
+- **Parent could not reproduce the cross-directory GREEN.** Launching vitest from
+  the monorepo root fails with `Failed to start forks worker` for **every** test
+  file, including pre-existing ones like `api.test.ts` — an environment/pool
+  failure unrelated to this change. The project runs its suite from
+  `frontend/`, where **101/101 pass**. The resolver's monorepo-root benefit is
+  therefore unverified in this environment and is claimed as designed, not proven.
+
 ### WU4 — Targets, grid and focus affordances — DONE
 
 - Route: **delegated** (one writer, `gentle-ai-worker`) + one parent correction.
