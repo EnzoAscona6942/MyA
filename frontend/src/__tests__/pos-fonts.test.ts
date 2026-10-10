@@ -20,6 +20,7 @@ const read = (relativePath: string): string =>
   readFileSync(resolve(frontendRoot, relativePath), 'utf8');
 
 const INDEX_HTML = 'index.html';
+const INDEX_CSS = 'src/index.css';
 const POS_STYLESHEET = 'src/pages/pos/pos.css';
 const DEAD_STYLES_MODULE = 'src/pages/pos/styles.ts';
 
@@ -57,6 +58,22 @@ describe('POS webfonts and animations', () => {
       const css = read(POS_STYLESHEET);
       expect(css).toMatch(/\.item-enter\s*\{/);
       expect(css).toMatch(/\.flash-green\s*\{/);
+    });
+  });
+
+  describe('index.css', () => {
+    it('declares both font role custom properties', () => {
+      const css = read(INDEX_CSS);
+      expect(css).toMatch(/--font-sans:\s*'Sora'/);
+      expect(css).toMatch(/--font-mono:\s*'DM+Mono'|--font-mono:\s*'DM Mono'/);
+    });
+
+    it('applies the sans stack to the body', () => {
+      expect(read(INDEX_CSS)).toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-sans\)/);
+    });
+
+    it('never hardcodes a font family on the body', () => {
+      expect(read(INDEX_CSS)).not.toMatch(/body\s*\{[^}]*font-family:\s*'/);
     });
   });
 

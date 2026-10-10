@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState } from 'react';
-import { C, NAV_ITEMS, METODOS_PAGO, fmt, now, type CartItem, type VentaFront, type ModalType, type MetodoPago } from './index';
+import { C, FS, FONT, SZ, NAV_ITEMS, METODOS_PAGO, fmt, now, type CartItem, type VentaFront, type ModalType, type MetodoPago } from './index';
 import { Sidebar, ModalPago, TicketVenta } from './components';
 import { usePOSLogic } from './logic';
 import Stock from '../Stock';
@@ -31,8 +31,8 @@ export const POS: FC = () => {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: C.text, letterSpacing: '-0.4px' }}>Punto de Venta</h1>
-            <p style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>Escaneá o buscá un producto para agregar</p>
+            <h1 style={{ fontSize: FS.xl, fontWeight: 700, color: C.text, letterSpacing: '-0.4px' }}>Punto de Venta</h1>
+            <p style={{ fontSize: FS.sm, color: C.textLight, marginTop: 2 }}>Escaneá o buscá un producto para agregar</p>
           </div>
           {/* Indicador de scanner */}
           <div style={{
@@ -47,7 +47,7 @@ export const POS: FC = () => {
               transition: 'all 0.2s',
               ...(logic.scanning ? { animation: 'scanPulse 0.4s ease' } : {}),
             }} />
-            <span style={{ fontSize: 11, fontWeight: 600, color: logic.scanning ? C.accent : C.textLight }}>
+            <span style={{ fontSize: FS.xs, fontWeight: 600, color: logic.scanning ? C.accent : C.textLight }}>
               {logic.scanning ? 'Leyendo...' : 'Scanner listo'}
             </span>
           </div>
@@ -71,7 +71,7 @@ export const POS: FC = () => {
             style={{
               width: '100%', padding: '12px 16px 12px 42px',
               border: '1px solid ' + C.border, borderRadius: 0,
-              fontSize: 14, fontFamily: "'DM Mono', monospace",
+              fontSize: FS.base, fontFamily: FONT.sans,
               outline: 'none', background: C.white, color: C.text,
               transition: 'border 0.15s',
             }}
@@ -82,7 +82,7 @@ export const POS: FC = () => {
             <button onClick={() => logic.setBusqueda('')} style={{
               position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
               background: 'none', border: 'none', cursor: 'pointer', color: C.textLight,
-              fontSize: 18, lineHeight: 1,
+              fontSize: FS.md, lineHeight: 1,
             }}>×</button>
           )}
         </div>
@@ -91,7 +91,7 @@ export const POS: FC = () => {
         {logic.error && (
           <div style={{
             padding: '10px 14px', background: C.dangerBg, borderRadius: 0,
-            color: C.danger, fontSize: 13, fontWeight: 500, marginBottom: 12,
+            color: C.danger, fontSize: FS.sm, fontWeight: 500, marginBottom: 12,
             border: '1px solid #FECACA', animation: 'slideIn 0.2s ease',
           }}>
             ⚠ {logic.error}
@@ -110,18 +110,22 @@ export const POS: FC = () => {
                 padding: '11px 16px', border: 'none', background: C.white, cursor: 'pointer',
                 borderTop: i > 0 ? '1px solid ' + C.border : 'none',
                 transition: 'background 0.1s', textAlign: 'left',
-                fontFamily: "'DM Mono', monospace",
+                fontFamily: FONT.sans,
               }}
                 onMouseEnter={e => e.currentTarget.style.background = C.bg}
                 onMouseLeave={e => e.currentTarget.style.background = C.white}
               >
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{p.nombre}</div>
-                  <div style={{ fontSize: 11, color: C.textLight, marginTop: 1 }}>{p.codigoBarras} · {p.categoria?.nombre || '-'}</div>
+                  <div style={{ fontSize: FS.base, fontWeight: 600, color: C.text }}>{p.nombre}</div>
+                  <div style={{ fontSize: FS.xs, color: C.textLight, marginTop: 1, fontFamily: FONT.sans }}>
+                    <span style={{ fontFamily: FONT.mono }}>{p.codigoBarras}</span> · {p.categoria?.nombre || '-'}
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: C.accent, fontFamily: "'DM Mono', monospace" }}>{fmt(p.precio)}</div>
-                  <div style={{ fontSize: 11, color: p.stock <= 5 ? C.danger : C.textLight }}>Stock: {p.stock}</div>
+                  <div style={{ fontSize: FS.md, fontWeight: 700, color: C.accent, fontFamily: FONT.mono }}>{fmt(p.precio)}</div>
+                  <div style={{ fontSize: FS.xs, color: p.stock <= 5 ? C.danger : C.textLight }}>
+                    Stock: <span style={{ fontFamily: FONT.mono }}>{p.stock}</span>
+                  </div>
                 </div>
               </button>
             ))}
@@ -131,7 +135,7 @@ export const POS: FC = () => {
         {/* Accesos rápidos cuando no hay búsqueda */}
         {!logic.busqueda && (
           <>
-            <p style={{ fontSize: 11, fontWeight: 600, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+            <p style={{ fontSize: FS.sm, fontWeight: 600, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
               Productos frecuentes
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, overflowY: 'auto' }}>
@@ -139,15 +143,15 @@ export const POS: FC = () => {
                 <button key={p.id} onClick={() => logic.agregarAlCarrito(p)} style={{
                   padding: '12px 14px', borderRadius: 0, border: '1px solid ' + C.border,
                   background: C.white, cursor: 'pointer', textAlign: 'left',
-                  transition: 'all 0.15s', fontFamily: "'DM Mono', monospace",
+                  transition: 'all 0.15s', fontFamily: FONT.sans,
                 }}
                   onMouseEnter={e => { e.currentTarget.style.border = '1px solid ' + C.accent; e.currentTarget.style.background = C.accentBg; }}
                   onMouseLeave={e => { e.currentTarget.style.border = '1px solid ' + C.border; e.currentTarget.style.background = C.white; }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 4, lineHeight: 1.3 }}>{p.nombre}</div>
+                  <div style={{ fontSize: FS.base, fontWeight: 600, color: C.text, marginBottom: 4, lineHeight: 1.3 }}>{p.nombre}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.accent, fontFamily: "'DM Mono', monospace" }}>{fmt(p.precio)}</span>
-                    <span style={{ fontSize: 10, color: C.textLight }}>×{p.stock}</span>
+                    <span style={{ fontSize: FS.base, fontWeight: 700, color: C.accent, fontFamily: FONT.mono }}>{fmt(p.precio)}</span>
+                    <span style={{ fontSize: FS.xs, color: C.textLight, fontFamily: FONT.mono }}>×{p.stock}</span>
                   </div>
                 </button>
               ))}
@@ -159,7 +163,7 @@ export const POS: FC = () => {
 
       {/* ── Panel derecho: carrito ── */}
       <div style={{
-        width: 340, background: C.white, display: 'flex', flexDirection: 'column',
+        width: `clamp(${SZ.cartMin}px, 30vw, ${SZ.cartMax}px)`, background: C.white, display: 'flex', flexDirection: 'column',
         borderLeft: '1px dashed ' + C.border, height: '100vh',
         boxShadow: 'none',
       }}>
@@ -167,12 +171,13 @@ export const POS: FC = () => {
         {/* Header carrito */}
         <div style={{ padding: '24px 20px 16px', borderBottom: '1px dashed ' + C.border }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+            <h2 style={{ fontSize: FS.lg, fontWeight: 700, color: C.text }}>
               Carrito
               {logic.carrito.length > 0 && (
                 <span style={{
                   marginLeft: 8, background: C.accent, color: '#fff',
-                  borderRadius: 0, padding: '1px 8px', fontSize: 11, fontWeight: 600,
+                  borderRadius: 0, padding: '1px 8px', fontSize: FS.sm, fontWeight: 600,
+                  fontFamily: FONT.mono,
                 }}>
                   {logic.carrito.reduce((a, i) => a + i.cantidad, 0)}
                 </span>
@@ -181,8 +186,8 @@ export const POS: FC = () => {
             {logic.carrito.length > 0 && (
               <button onClick={() => logic.setCarrito([])} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 11, color: C.danger, fontWeight: 600,
-                fontFamily: "'DM Mono', monospace",
+                fontSize: FS.sm, color: C.danger, fontWeight: 600,
+                fontFamily: FONT.sans,
               }}>
                 Limpiar
               </button>
@@ -199,7 +204,7 @@ export const POS: FC = () => {
                   <path d="M3 5v14M7 5v14M11 5v14M15 5v14M19 5v14M3 5h2M3 19h2M19 5h2M19 19h2" />
                 </svg>
               </div>
-              <p style={{ fontSize: 13, color: C.textLight, lineHeight: 1.5 }}>
+              <p style={{ fontSize: FS.base, color: C.textLight, lineHeight: 1.5 }}>
                 Escaneá un producto<br />o buscalo arriba
               </p>
             </div>
@@ -213,10 +218,10 @@ export const POS: FC = () => {
               }}>
                 {/* Info producto */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.3, marginBottom: 2 }}>
+                  <div style={{ fontSize: FS.base, fontWeight: 600, color: C.text, lineHeight: 1.3, marginBottom: 2 }}>
                     {item.nombre}
                   </div>
-                  <div style={{ fontSize: 11, color: C.textLight, fontFamily: "'DM Mono', monospace" }}>
+                  <div style={{ fontSize: FS.xs, color: C.textLight, fontFamily: FONT.mono }}>
                     {fmt(item.precio)} c/u
                   </div>
                 </div>
@@ -225,22 +230,22 @@ export const POS: FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <button onClick={() => logic.cambiarCantidad(item.id, -1)} style={{
                     width: 24, height: 24, borderRadius: 0, border: '1px solid ' + C.border,
-                    background: C.white, cursor: 'pointer', fontSize: 14, color: C.textMid,
+                    background: C.white, cursor: 'pointer', fontSize: FS.base, color: C.textMid,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
                   }}>−</button>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text, minWidth: 20, textAlign: 'center', fontFamily: "'DM Mono', monospace" }}>
+                  <span style={{ fontSize: FS.base, fontWeight: 700, color: C.text, minWidth: 20, textAlign: 'center', fontFamily: FONT.mono }}>
                     {item.cantidad}
                   </span>
                   <button onClick={() => logic.cambiarCantidad(item.id, 1)} style={{
                     width: 24, height: 24, borderRadius: 0, border: '1px solid ' + C.border,
-                    background: C.white, cursor: 'pointer', fontSize: 14, color: C.textMid,
+                    background: C.white, cursor: 'pointer', fontSize: FS.base, color: C.textMid,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
                   }}>+</button>
                 </div>
 
                 {/* Subtotal */}
                 <div style={{ textAlign: 'right', minWidth: 64 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: "'DM Mono', monospace" }}>
+                  <div style={{ fontSize: FS.base, fontWeight: 700, color: C.text, fontFamily: FONT.mono }}>
                     {fmt(item.precio * item.cantidad)}
                   </div>
                   <button onClick={() => logic.quitarItem(item.id)} style={{
@@ -266,7 +271,7 @@ export const POS: FC = () => {
 
           {/* Descuento */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <label style={{ fontSize: 12, color: C.textMid, fontWeight: 500, whiteSpace: 'nowrap' }}>Descuento $</label>
+            <label style={{ fontSize: FS.sm, color: C.textMid, fontWeight: 500, whiteSpace: 'nowrap' }}>Descuento $</label>
             <input
               type="number"
               value={logic.descuento || ''}
@@ -275,7 +280,7 @@ export const POS: FC = () => {
               min="0"
               style={{
                 flex: 1, padding: '7px 10px', border: '1px solid ' + C.border,
-                borderRadius: 0, fontSize: 13, fontFamily: "'DM Mono', monospace",
+                borderRadius: 0, fontSize: FS.base, fontFamily: FONT.mono,
                 outline: 'none', color: C.text,
               }}
               onFocus={logic.handleMontoFocus}
@@ -286,14 +291,14 @@ export const POS: FC = () => {
           {/* Subtotal */}
           {logic.descuento > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: C.textMid }}>Subtotal</span>
-              <span style={{ fontSize: 12, color: C.textMid, fontFamily: "'DM Mono', monospace" }}>{fmt(logic.subtotal)}</span>
+              <span style={{ fontSize: FS.sm, color: C.textMid }}>Subtotal</span>
+              <span style={{ fontSize: FS.sm, color: C.textMid, fontFamily: FONT.mono }}>{fmt(logic.subtotal)}</span>
             </div>
           )}
           {logic.descuento > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: C.amber }}>Descuento</span>
-              <span style={{ fontSize: 12, color: C.amber, fontFamily: "'DM Mono', monospace" }}>− {fmt(logic.descuento)}</span>
+              <span style={{ fontSize: FS.sm, color: C.amber }}>Descuento</span>
+              <span style={{ fontSize: FS.sm, color: C.amber, fontFamily: FONT.mono }}>− {fmt(logic.descuento)}</span>
             </div>
           )}
 
@@ -303,8 +308,8 @@ export const POS: FC = () => {
             padding: '12px 14px', background: logic.carrito.length > 0 ? C.accentBg : C.bg,
             borderRadius: 0, marginBottom: 12, transition: 'background 0.3s',
           }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>TOTAL</span>
-            <span style={{ fontSize: 22, fontWeight: 700, color: logic.carrito.length > 0 ? C.accent : C.textLight, fontFamily: "'DM Mono', monospace" }}>
+            <span style={{ fontSize: FS.md, fontWeight: 700, color: C.text }}>TOTAL</span>
+            <span style={{ fontSize: FS.xl, fontWeight: 700, color: logic.carrito.length > 0 ? C.accent : C.textLight, fontFamily: FONT.mono }}>
               {fmt(logic.total)}
             </span>
           </div>
@@ -319,8 +324,8 @@ export const POS: FC = () => {
               color: logic.carrito.length > 0 ? C.text : C.textLight,
               borderTop: '1px dashed ' + C.border,
               borderBottom: '1px dashed ' + C.border,
-              fontSize: 15, fontWeight: 700, cursor: logic.carrito.length > 0 ? 'pointer' : 'not-allowed',
-              fontFamily: "'DM Mono', monospace", transition: 'all 0.2s',
+              fontSize: FS.md, fontWeight: 700, cursor: logic.carrito.length > 0 ? 'pointer' : 'not-allowed',
+              fontFamily: FONT.sans, transition: 'all 0.2s',
               letterSpacing: '-0.2px',
             }}
             onMouseEnter={e => { if (logic.carrito.length > 0) e.currentTarget.style.background = C.accentHov; }}

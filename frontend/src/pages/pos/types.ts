@@ -24,6 +24,29 @@ export const C = {
   blueBg: '#DBEAFE'
 } as const;
 
+// ── Typography ───────────────────────────────────────────────
+export const FS = {
+  xs: 12,      // captions: stock, barcode, metadata, sidebar date/role
+  sm: 13,      // labels, secondary lines, count badge
+  base: 15,    // product names, body copy
+  md: 17,      // emphasised values
+  lg: 20,      // section headings ("Carrito", "Confirmar pago")
+  xl: 24,      // page title ("Punto de Venta")
+  display: 34  // the amount in the payment modal
+} as const;
+
+export const SZ = {
+  target: 34,      // interactive control height (mouse-comfortable)
+  cartMin: 360,
+  cartMax: 460
+} as const;
+
+// Single owner of the two font roles: Sora for text, DM Mono for figures.
+export const FONT = {
+  sans: 'var(--font-sans)',
+  mono: 'var(--font-mono)'
+} as const;
+
 // ── Nav items ────────────────────────────────────────────────
 export const NAV_ITEMS = [
   { id: 'pos', label: 'Caja / POS', iconName: 'ShopIcon' },

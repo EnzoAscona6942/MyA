@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../lib/api';
-import { C, NAV_ITEMS, METODOS_PAGO, fmt, now, iconMap, type IconName, type ModalType, type MetodoPago, type CartItem, type VentaFront, type CajaActiva } from './index';
+import { C, FS, FONT, NAV_ITEMS, METODOS_PAGO, fmt, now, iconMap, type IconName, type ModalType, type MetodoPago, type CartItem, type VentaFront, type CajaActiva } from './index';
 import type { FC, ReactNode, ChangeEvent, KeyboardEvent, MouseEvent, FormEvent } from 'react';
 
 // ============================================================
@@ -33,11 +33,11 @@ export const Sidebar: FC<SidebarProps> = ({ activeModule, setActiveModule }) => 
             width: 34, height: 34, borderRadius: 0,
             background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: "'DM Mono', monospace" }}>M</span>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: FS.md, fontFamily: FONT.sans }}>M</span>
           </div>
           <div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 15, letterSpacing: '-0.3px' }}>MyA</div>
-            <div style={{ color: '#6B7280', fontSize: 10, fontWeight: 400, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Minimercado</div>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: FS.base, letterSpacing: '-0.3px' }}>MyA</div>
+            <div style={{ color: '#6B7280', fontSize: FS.xs, fontWeight: 400, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Minimercado</div>
           </div>
         </div>
       </div>
@@ -47,7 +47,7 @@ export const Sidebar: FC<SidebarProps> = ({ activeModule, setActiveModule }) => 
         <div style={{
           background: 'rgba(255,255,255,0.05)', borderRadius: 0, padding: '8px 12px',
         }}>
-          <div style={{ color: '#9CA3AF', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ color: '#9CA3AF', fontSize: FS.xs, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
         </div>
@@ -55,7 +55,7 @@ export const Sidebar: FC<SidebarProps> = ({ activeModule, setActiveModule }) => 
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '0 12px' }}>
-        <div style={{ color: '#4B5563', fontSize: 10, fontWeight: 600, letterSpacing: '0.8px', textTransform: 'uppercase', padding: '0 8px 8px' }}>Módulos</div>
+        <div style={{ color: '#4B5563', fontSize: FS.xs, fontWeight: 600, letterSpacing: '0.8px', textTransform: 'uppercase', padding: '0 8px 8px' }}>Módulos</div>
         {NAV_ITEMS.map(({ id, label, iconName }) => {
           const active = activeModule === id;
           const Icon = iconMap[iconName as keyof typeof iconMap];
@@ -74,7 +74,7 @@ export const Sidebar: FC<SidebarProps> = ({ activeModule, setActiveModule }) => 
               onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF'; } }}
             >
               <Icon size={16} color="currentColor" />
-              <span style={{ fontSize: 13, fontWeight: active ? 600 : 400 }}>{label}</span>
+              <span style={{ fontSize: FS.sm, fontWeight: active ? 600 : 400 }}>{label}</span>
               {active && <div style={{ marginLeft: 'auto', width: 5, height: 5, borderRadius: '50%', background: '#10B981' }} />}
             </button>
           );
@@ -89,15 +89,15 @@ export const Sidebar: FC<SidebarProps> = ({ activeModule, setActiveModule }) => 
             background: 'linear-gradient(135deg, #16A34A, #059669)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <span style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>
+            <span style={{ color: '#fff', fontSize: FS.sm, fontWeight: 600 }}>
               {usuario?.nombre?.substring(0, 2).toUpperCase() || 'US'}
             </span>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: '#F9FAFB', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ color: '#F9FAFB', fontSize: FS.sm, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {usuario?.nombre || 'Usuario'}
             </div>
-            <div style={{ color: '#6B7280', fontSize: 10 }}>{usuario?.rol || 'Rol'}</div>
+            <div style={{ color: '#6B7280', fontSize: FS.xs }}>{usuario?.rol || 'Rol'}</div>
           </div>
           <button onClick={logout} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: 4 }}
             onMouseEnter={e => e.currentTarget.style.color = '#EF4444'}
@@ -141,17 +141,17 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
         boxShadow: 'none',
         animation: 'slideIn 0.2s ease',
       }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#171717', marginBottom: 6 }}>Confirmar pago</h2>
-        <p style={{ fontSize: 13, color: '#52525B', marginBottom: 24 }}>Seleccioná el método de cobro</p>
+        <h2 style={{ fontSize: FS.lg, fontWeight: 700, color: '#171717', marginBottom: 6 }}>Confirmar pago</h2>
+        <p style={{ fontSize: FS.sm, color: '#52525B', marginBottom: 24 }}>Seleccioná el método de cobro</p>
 
         {/* Total */}
         <div style={{ background: '#D1FAE5', borderRadius: 0, padding: '16px 20px', marginBottom: 24, textAlign: 'center' }}>
           {descuento > 0 && (
-            <div style={{ fontSize: 12, color: '#52525B', marginBottom: 2 }}>
-              Descuento aplicado: <span style={{ color: '#10B981', fontWeight: 600 }}>- {fmt(descuento)}</span>
+            <div style={{ fontSize: FS.sm, color: '#52525B', marginBottom: 2 }}>
+              Descuento aplicado: <span style={{ color: '#10B981', fontWeight: 600, fontFamily: FONT.mono }}>- {fmt(descuento)}</span>
             </div>
           )}
-          <div style={{ fontSize: 32, fontWeight: 700, color: '#10B981', fontFamily: "'DM Mono', monospace" }}>{fmt(total)}</div>
+          <div style={{ fontSize: FS.display, fontWeight: 700, color: '#10B981', fontFamily: FONT.mono }}>{fmt(total)}</div>
         </div>
 
         {/* Métodos de pago */}
@@ -161,8 +161,8 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
               padding: '8px 4px', borderRadius: 0, border: `1px solid ${metodo === m.id ? '#10B981' : 'rgba(0,0,0,0.15)'}`,
               background: metodo === m.id ? '#D1FAE5' : '#FFFFFF',
               color: metodo === m.id ? '#10B981' : '#52525B',
-              fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
-              fontFamily: "'DM Mono', monospace",
+              fontSize: FS.sm, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+              fontFamily: FONT.sans,
             }}>
               {m.label}
             </button>
@@ -172,7 +172,7 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
         {/* Monto recibido (solo efectivo) */}
         {metodo === 'EFECTIVO' && (
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#52525B', marginBottom: 6 }}>
+            <label style={{ display: 'block', fontSize: FS.sm, fontWeight: 600, color: '#52525B', marginBottom: 6 }}>
               Monto recibido
             </label>
             <input
@@ -183,8 +183,8 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
               autoFocus
               style={{
                 width: '100%', padding: '10px 14px', borderRadius: 0,
-                border: `1px solid rgba(0,0,0,0.15)`, fontSize: 18,
-                fontFamily: "'DM Mono', monospace", fontWeight: 500,
+                border: `1px solid rgba(0,0,0,0.15)`, fontSize: FS.md,
+                fontFamily: FONT.mono, fontWeight: 500,
                 outline: 'none', color: '#171717',
                 transition: 'border 0.15s',
               }}
@@ -193,8 +193,8 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
             />
             {vuelto !== null && vuelto >= 0 && (
               <div style={{ marginTop: 8, padding: '8px 12px', background: '#FEF3C7', borderRadius: 0, display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, color: '#52525B' }}>Vuelto</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: '#F59E0B', fontFamily: "'DM Mono', monospace" }}>{fmt(vuelto)}</span>
+                <span style={{ fontSize: FS.sm, color: '#52525B' }}>Vuelto</span>
+                <span style={{ fontSize: FS.md, fontWeight: 700, color: '#F59E0B', fontFamily: FONT.mono }}>{fmt(vuelto)}</span>
               </div>
             )}
           </div>
@@ -204,8 +204,8 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{
             flex: 1, padding: '12px', borderRadius: 0, border: `1px dashed rgba(0,0,0,0.15)`,
-            background: 'transparent', color: '#52525B', fontSize: 14, fontWeight: 600,
-            cursor: 'pointer', fontFamily: "'DM Mono', monospace", transition: 'all 0.15s',
+            background: 'transparent', color: '#52525B', fontSize: FS.base, fontWeight: 600,
+            cursor: 'pointer', fontFamily: FONT.sans, transition: 'all 0.15s',
           }}
             onMouseEnter={e => e.currentTarget.style.background = '#F5F5F3'}
             onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
@@ -218,9 +218,9 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
             style={{
               flex: 2, padding: '12px', borderRadius: 0, border: 'none',
               background: puedeConfirmar ? '#10B981' : '#D1D5DB',
-              color: '#fff', fontSize: 14, fontWeight: 700,
+              color: '#fff', fontSize: FS.base, fontWeight: 700,
               cursor: puedeConfirmar ? 'pointer' : 'not-allowed',
-              fontFamily: "'DM Mono', monospace", transition: 'all 0.15s',
+              fontFamily: FONT.sans, transition: 'all 0.15s',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}
             onMouseEnter={e => { if (puedeConfirmar) e.currentTarget.style.background = '#059669'; }}
@@ -268,33 +268,33 @@ export const TicketVenta: FC<TicketVentaProps> = ({ venta, onNuevaVenta }) => {
           </svg>
         </div>
 
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#171717', marginBottom: 4 }}>¡Venta registrada!</h2>
-        <p style={{ fontSize: 12, color: '#A1A1AA', marginBottom: 24 }}>#{String(venta.id).padStart(6, '0')} · {now()}</p>
+        <h2 style={{ fontSize: FS.lg, fontWeight: 700, color: '#171717', marginBottom: 4 }}>¡Venta registrada!</h2>
+        <p style={{ fontSize: FS.xs, color: '#A1A1AA', marginBottom: 24 }}>#{String(venta.id).padStart(6, '0')} · {now()}</p>
 
         {/* Detalle */}
         <div style={{ textAlign: 'left', background: '#F5F5F3', borderRadius: 0, padding: 16, marginBottom: 20 }}>
           {venta.items.map((item, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: '#52525B' }}>{item.cantidad}× {item.nombre}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#171717', fontFamily: "'DM Mono', monospace" }}>{fmt(item.subtotal)}</span>
+              <span style={{ fontSize: FS.base, color: '#52525B', fontFamily: FONT.sans }}>{item.cantidad}× {item.nombre}</span>
+              <span style={{ fontSize: FS.sm, fontWeight: 600, color: '#171717', fontFamily: FONT.mono }}>{fmt(item.subtotal)}</span>
             </div>
           ))}
           <div style={{ borderTop: `1px dashed rgba(0,0,0,0.15)`, marginTop: 10, paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#171717' }}>Total</span>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#10B981', fontFamily: "'DM Mono', monospace" }}>{fmt(venta.total)}</span>
+            <span style={{ fontSize: FS.base, fontWeight: 700, color: '#171717' }}>Total</span>
+            <span style={{ fontSize: FS.md, fontWeight: 700, color: '#10B981', fontFamily: FONT.mono }}>{fmt(venta.total)}</span>
           </div>
           {venta.vuelto > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-              <span style={{ fontSize: 12, color: '#52525B' }}>Vuelto</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#F59E0B', fontFamily: "'DM Mono', monospace" }}>{fmt(venta.vuelto)}</span>
+              <span style={{ fontSize: FS.sm, color: '#52525B' }}>Vuelto</span>
+              <span style={{ fontSize: FS.sm, fontWeight: 600, color: '#F59E0B', fontFamily: FONT.mono }}>{fmt(venta.vuelto)}</span>
             </div>
           )}
         </div>
 
         <button onClick={onNuevaVenta} style={{
           width: '100%', padding: '13px', borderRadius: 0, border: 'none',
-          background: '#10B981', color: '#fff', fontSize: 14, fontWeight: 700,
-          cursor: 'pointer', fontFamily: "'DM Mono', monospace", transition: 'all 0.15s',
+          background: '#10B981', color: '#fff', fontSize: FS.base, fontWeight: 700,
+          cursor: 'pointer', fontFamily: FONT.sans, transition: 'all 0.15s',
         }}
           onMouseEnter={e => e.currentTarget.style.background = '#059669'}
           onMouseLeave={e => e.currentTarget.style.background = '#10B981'}

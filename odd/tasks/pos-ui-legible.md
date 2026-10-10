@@ -102,17 +102,23 @@ Functional checks for every work unit: `npx tsc --noEmit`, `npm run lint`,
 - Add the structural regression test described above.
 - Ships alone so a future visual regression is attributable.
 
-### WU2 — Typographic scale and sizing tokens
+### WU2 — Typographic scale, font roles and cart width
 
-- Add a type scale and target/spacing tokens to `pages/pos/types.ts`.
-- Replace the arbitrary sizes across `render.tsx` and `components.tsx`.
-- Switch the POS from the monospace-for-everything default to Sora for text and
-  keep DM Mono only for figures (prices, quantities, totals).
+- Add a type scale and size tokens to `pages/pos/types.ts`.
+- Move the base font to a Sora-first stack in `index.css`, exposed as
+  `--font-sans` / `--font-mono` custom properties.
+- Switch text to Sora and keep DM Mono for figures only (prices, quantities,
+  totals) across `render.tsx` and `components.tsx`.
+- Make the cart width responsive instead of the fixed 340px.
 
-### WU3 — Cart panel density and layout
+The cart width ships inside WU2 rather than WU3 on purpose: raising the type scale
+~25% inside a fixed 340px column truncates product names, so the intermediate
+commit would render worse than the one before it. Every commit must render sanely
+on its own.
 
-- Responsive cart width instead of the fixed 340px.
-- Grow the quantity and delete targets.
+### WU3 — Targets, grid and focus affordances
+
+- Grow the quantity and delete targets to a mouse-comfortable size.
 - `auto-fill` grid for frequent products.
 - Add `focus-visible` equivalents to the hover-only affordances.
 
@@ -129,4 +135,54 @@ Roughly 250-300 authored changed lines across the four work units — under the
 
 ## Progress
 
-_(updated as each work unit closes)_
+### WU2 — Typographic scale, font roles and cart width — DONE
+
+- Route: **delegated** (one writer, `gentle-ai-worker`), 5 files touched.
+- The POS declared `fontFamily: "'DM Mono'"` on 29 elements, so product names,
+  buttons and nav labels all rendered monospace. Text is now `FONT.sans` (Sora
+  via `--font-sans`) and figures stay `FONT.mono`.
+- 62 `fontSize` declarations moved onto the `FS` scale. Parent-verified: **0**
+  sizes outside the scale, **0** raw `'DM Mono'` literals, **0** hand-written
+  `fontFamily: 'var(...)'` remain in `render.tsx` / `components.tsx`.
+- Cart width `340` → `clamp(${SZ.cartMin}px, 30vw, ${SZ.cartMax}px)`.
+- Parent corrected one worker slip: `SZ.cartMin` / `SZ.cartMax` were exported but
+  unused (the clamp had been written as a literal), leaving the exact kind of dead
+  export that caused WU1. Fixed inline by interpolating the tokens.
+- Test policy exception applied as documented: jsdom has no font metrics, so the
+  scale itself is unobservable. Three deterministic structural assertions were
+  added to `pos-fonts.test.ts` (6/6 → 9/9). The worker **explicitly did not claim
+  a RED run** for those three because they were written after the implementation.
+- Parent spot check: `tsc` 0, **87/87** tests, `build` 0.
+- Native assessment and commit: pending.
+
+### WU1 — Webfont and animation loading — DONE
+
+- Route: **delegated** (one writer, `gentle-ai-worker`), 6 files touched, so the
+  2+ non-trivial-file writer trigger applied.
+- RED observed: `npx vitest run src/__tests__/pos-fonts.test.ts` exit 1, 6/6
+  failing against the pre-fix tree (no font link, no `pos.css`, `styles.ts` still
+  on disk). The writer self-reported an earlier invalid RED caused by resolving
+  paths via `import.meta.url` under jsdom, and corrected the harness before
+  claiming the valid RED.
+- GREEN observed: same command exit 0, 6/6 passing.
+- Baseline 78 tests → **84 passing**.
+- Parent spot check: re-ran the suite (6/6 green), and confirmed on the built
+  artifact that `dist/index.html` carries the font link and the built CSS now
+  contains **4** `@keyframes` (it was 0 before the fix).
+- `tsc` 0, `lint` 0 (known pre-existing coverage warning), `build` 0.
+- Native assessment: **medium**, `executable_change` on `frontend/index.html`;
+  `review_due: false`, reason `under_budget`. No native review ran; the candidate
+  stays pending in this slice. Reviewed boundary: `main`.
+- Commits: `02a899f` (docs), `948c7b3` (fix).
+- Running authored changed lines: **287** (132 doc + 155 fix). Remaining slice
+  budget to the 400-line delivery boundary: **113**.
+
+### Known environment findings
+
+- The `grep` and `glob` tools are broken in this environment (`Expand-Archive`
+  cannot autoload `Microsoft.PowerShell.Archive`). Use `Select-String` via bash.
+- `.opencode/` is untracked tooling and must be declared excluded to
+  `gentle-ai review assess`, otherwise it returns `unassessable` → `high`.
+- `frontend/index.html` references `/src/main.jsx` while the file is `main.tsx`.
+  Verified harmless: Vite's resolver handles the extension and `npm run build`
+  emits a correct bundle. Explicitly **out of scope**, left untouched.
