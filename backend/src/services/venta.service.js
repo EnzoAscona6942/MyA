@@ -9,14 +9,16 @@ const { NotFoundError, ConflictError } = require('../utils/errors')
 /**
  * Crear una venta completa con validación atómica
  */
-const crearVenta = async ({ items, cajaId, usuarioId, metodoPago, descuento = 0, observaciones }) => {
+const crearVenta = async ({ items, cajaId, usuarioId, metodoPago, descuento = 0, montoRecibido, observaciones }) => {
   // 1. Validar esquema de entrada
   const validated = ventaSchema.parse({
     items,
     cajaId,
     usuarioId,
     metodoPago,
-    descuento
+    descuento,
+    montoRecibido,
+    observaciones
   })
 
   // 2. Verificar que la caja existe y está abierta
@@ -59,16 +61,34 @@ const crearVenta = async ({ items, cajaId, usuarioId, metodoPago, descuento = 0,
 
     const total = Math.max(0, subtotal - Number(descuento))
 
+    const metodoPagoEfectivo = metodoPago || 'EFECTIVO'
+
+    // El vuelto NUNCA viene del cliente: se deriva acá de `total`, que sale de
+    // los precios de la DB. Sólo aplica a efectivo y cuando el cajero declaró
+    // cuánto recibió — `typeof` en vez de truthiness porque 0 es un monto
+    // recibido válido, no un dato ausente.
+    const hayMontoRecibido = typeof validated.montoRecibido === 'number'
+    const vuelto = hayMontoRecibido && metodoPagoEfectivo === 'EFECTIVO'
+      ? Number(validated.montoRecibido) - total
+      : null
+
+    // Regla de producto PENDIENTE, no resuelta acá a propósito: si el cajero
+    // entrega menos que el total, el vuelto queda negativo y `total` no se
+    // corrige. Se persiste el cálculo tal cual sale. Definir si eso debe
+    // bloquear la venta es decisión del negocio.
+
     // 6. Crear venta
     const nuevaVenta = await tx.venta.create({
       data: {
         subtotal,
         descuento: Number(descuento),
         total,
-        metodoPago: metodoPago || 'EFECTIVO',
+        montoRecibido: hayMontoRecibido ? Number(validated.montoRecibido) : null,
+        vuelto,
+        metodoPago: metodoPagoEfectivo,
         cajaId: Number(cajaId),
         usuarioId: Number(usuarioId),
-        observaciones: validated.observaciones,
+        observaciones: validated.observaciones ?? null,
         items: {
           create: validated.items.map(item => ({
             productoId: item.productoId,
