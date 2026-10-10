@@ -4,25 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useChunkedUpload } from '../hooks/useChunkedUpload';
 import * as XLSX from 'xlsx';
 import type { Categoria, Pagination, Producto } from '../types/api';
-
-const C = {
-  bg: '#F5F5F3',
-  white: '#FFFFFF',
-  sidebar: '#0A0A0A',
-  text: '#171717',
-  textMid: '#52525B',
-  textLight: '#A1A1AA',
-  border: 'rgba(0,0,0,0.15)',
-  accent: '#10B981',
-  accentHov: '#059669',
-  accentBg: '#D1FAE5',
-  danger: '#EF4444',
-  dangerBg: '#FEE2E2',
-  amber: '#F59E0B',
-  amberBg: '#FEF3C7',
-  blue: '#3B82F6',
-  blueBg: '#DBEAFE'
-} as const;
+import { C } from '../theme';
 
 // ── Tipos locales ──────────────────────────────────────────────
 

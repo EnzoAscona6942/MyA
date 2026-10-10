@@ -20,7 +20,12 @@ const INDEX_CSS = 'src/index.css';
 const POS_ENTRY = 'src/pages/POS.tsx';
 const POS_MODULE_DIR = 'src/pages/pos';
 const POS_STYLESHEET = 'src/pages/pos/pos.css';
-const POS_TYPES = 'src/pages/pos/types.ts';
+
+// The single owner of the palette, the type scale, the control sizes and the
+// font roles. The POS re-exports these from its own `types.ts`, but the
+// declarations themselves — and therefore the contracts below — read the
+// theme module, which is where every consumer actually gets its values from.
+const THEME = 'src/theme.ts';
 
 // The audited POS modules: the ones that consume style objects, and so are
 // subject to every contract in this file.
@@ -41,7 +46,7 @@ const AUDITED_POS_MODULES = [
 const EXCLUDED_POS_MODULES: ReadonlyMap<string, string> = new Map([
   [
     'src/pages/pos/types.ts',
-    'Declares the scale, palette and font-role tokens the audited modules consume. It is the owner, not a consumer: scanning it for fontSize or fontFamily usage would only find the definitions.'
+    'Re-exports the scale, palette, control-size and font-role tokens the audited modules consume, and adds the POS-local nav items, API response shapes and formatters. It is a facade over the owner, not a consumer: scanning it for fontSize or fontFamily usage would only find the definitions.'
   ],
   [
     'src/pages/pos/icons.tsx',
@@ -175,7 +180,7 @@ const tokenReferences = (source: string, objectName: string): string[] => [
   )
 ];
 
-// Keys of a `export const X = { ... } as const;` literal in `types.ts`.
+// Keys of a `export const X = { ... } as const;` literal in `theme.ts`.
 const declaredKeys = (source: string, objectName: string): string[] => {
   const block =
     new RegExp(`export const ${objectName} = \\{([\\s\\S]*?)\\} as const;`).exec(source)?.[1] ?? '';
@@ -187,7 +192,7 @@ const declaredKeys = (source: string, objectName: string): string[] => {
 };
 
 // The same literal, but read as `key -> value`. Only single-quoted string
-// values are captured: every palette entry in `types.ts` is a colour
+// values are captured: every palette entry in `theme.ts` is a colour
 // literal, and a value this reader cannot see is a value it must not
 // silently treat as matching.
 const declaredEntries = (source: string, objectName: string): Map<string, string> => {
@@ -264,7 +269,7 @@ describe('POS test harness', () => {
     expect(readFixture('index.html')).toContain('<!doctype html>');
     expect(readFixture(POS_ENTRY)).toContain('./pos/render');
     expect(readFixture(POS_STYLESHEET)).toContain('@keyframes');
-    expect(readFixture(POS_TYPES)).toContain('export const FS');
+    expect(readFixture(THEME)).toContain('export const FS');
     for (const module of POS_MODULES) {
       expect(readFixture(module)).toContain('FS.');
     }
@@ -485,8 +490,8 @@ describe('POS typographic scale adoption', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('references only scale and font-role tokens that types.ts declares', () => {
-    const types = readFixture(POS_TYPES);
+  it('references only scale and font-role tokens that the theme module declares', () => {
+    const theme = readFixture(THEME);
     const source = POS_MODULES.map(readFixture).join('\n');
 
     const scaleTokens = tokenReferences(source, 'FS');
@@ -495,8 +500,8 @@ describe('POS typographic scale adoption', () => {
     expect(scaleTokens.length).toBeGreaterThan(0);
     expect(fontTokens.length).toBeGreaterThan(0);
 
-    const declaredScale = declaredKeys(types, 'FS');
-    const declaredFonts = declaredKeys(types, 'FONT');
+    const declaredScale = declaredKeys(theme, 'FS');
+    const declaredFonts = declaredKeys(theme, 'FONT');
     expect(declaredScale.length).toBeGreaterThan(0);
     expect(declaredFonts.length).toBeGreaterThan(0);
 
@@ -509,10 +514,9 @@ describe('POS typographic scale adoption', () => {
 // PALETTE OWNERSHIP
 // ============================================================
 //
-// `src/index.css` declares the palette in `:root` and
-// `pages/pos/types.ts` re-implements the same colours as `C`. Neither
-// owner reads the other, so one could move while the other stayed and
-// nothing would notice.
+// `src/index.css` declares the palette in `:root` and `src/theme.ts`
+// implements the same colours as `C`. Neither owner reads the other, so one
+// could move while the other stayed and nothing would notice.
 //
 // `C` deliberately keeps literal values instead of `var(--token)`
 // strings, because it is consumed in three places where an unresolved
@@ -536,10 +540,10 @@ describe('POS palette ownership', () => {
   const FONT_STACKS = ['font-sans', 'font-mono'];
 
   it('declares every C token in :root with the same value', () => {
-    const palette = declaredEntries(readFixture(POS_TYPES), 'C');
+    const palette = declaredEntries(readFixture(THEME), 'C');
     const root = rootCustomProperties(readFixture(INDEX_CSS));
 
-    // Non-vacuity: the palette really is being read out of `types.ts`.
+    // Non-vacuity: the palette really is being read out of the theme module.
     expect(palette.size).toBeGreaterThan(0);
 
     const drift = [...palette].flatMap(([token, value]) => {
@@ -552,7 +556,7 @@ describe('POS palette ownership', () => {
   });
 
   it('declares every :root colour property in C', () => {
-    const palette = declaredEntries(readFixture(POS_TYPES), 'C');
+    const palette = declaredEntries(readFixture(THEME), 'C');
     const root = rootCustomProperties(readFixture(INDEX_CSS));
 
     const orphans = [...root.keys()].filter((name) => !palette.has(name));
@@ -570,7 +574,7 @@ describe('POS palette ownership', () => {
   });
 
   it('keeps the palette literal in C and out of the POS modules', () => {
-    const palette = declaredEntries(readFixture(POS_TYPES), 'C');
+    const palette = declaredEntries(readFixture(THEME), 'C');
 
     // Non-vacuity on both axes: the palette is non-empty and really does
     // carry colour values, so an empty reader cannot read as a pass.

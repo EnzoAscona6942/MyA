@@ -143,9 +143,12 @@ describe('POS webfonts and animations', () => {
     });
 
     it('keeps the font role tokens declared with a fallback', () => {
-      const types = read('src/pages/pos/types.ts');
-      expect(types).toMatch(/sans:\s*'var\(--font-sans,\s*system-ui/);
-      expect(types).toMatch(/mono:\s*'var\(--font-mono,\s*ui-monospace/);
+      // The tokens moved to the shared theme module when the seven duplicated
+      // palettes were collapsed. They are re-exported from `pos/types.ts`, so
+      // a re-export alone would no longer prove the declarations exist.
+      const theme = read('src/theme.ts');
+      expect(theme).toMatch(/sans:\s*'var\(--font-sans,\s*system-ui/);
+      expect(theme).toMatch(/mono:\s*'var\(--font-mono,\s*ui-monospace/);
     });
   });
 
