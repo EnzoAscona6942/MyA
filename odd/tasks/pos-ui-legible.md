@@ -116,13 +116,40 @@ The cart width ships inside WU2 rather than WU3 on purpose: raising the type sca
 commit would render worse than the one before it. Every commit must render sanely
 on its own.
 
-### WU3 — Targets, grid and focus affordances
+### WU3 — Self-hosted font delivery (closes `R3-cdn-render-blocking`)
 
-- Grow the quantity and delete targets to a mouse-comfortable size.
+- Vendor the latin-subset `woff2` files into `frontend/public/fonts/` so the POS
+  has **zero** third-party runtime dependency and renders with no network at all.
+- Only the weights the code actually declares are vendored: `fontWeight` in use
+  across the POS is exactly 400, 500, 600 and 700 — the 300 in the original Google
+  Fonts URL was dead weight. Sora 400/500/600/700 plus DM Mono 400/500 = 6 files.
+- Declare them with `@font-face` in `index.css`, `font-display: swap`, keeping the
+  `unicode-range` so the browser never requests another subset.
+- Remove the `preconnect` hints and the Google Fonts `<link>` from `index.html`.
+- Give `FONT.sans` / `FONT.mono` a fallback inside `var()`
+  (closes `R3-font-token-no-fallback`), so a missing stylesheet degrades instead of
+  silently erasing the typography contract.
+- Invert the corresponding test assertions: no third-party origin in
+  `index.html`, `@font-face` present for both families, all six files on disk.
+
+### WU4 — Targets, grid and focus affordances
+
+- Apply `SZ.target` to the quantity and delete controls, which also closes
+  `R3-sz-target-dead-token`.
 - `auto-fill` grid for frequent products.
 - Add `focus-visible` equivalents to the hover-only affordances.
 
-### WU4 — Consolidate the token source of truth
+### WU5 — Close the review's test guard gaps
+
+- `R3-css-wiring-unguarded`: assert the POS entry still imports the stylesheet and
+  that every animation name used by a POS component is a declared `@keyframes`.
+- `R3-scale-adoption-unasserted`: assert no `fontSize` outside the `FS` scale and
+  no raw monospace literal in the POS modules, so the scale cannot drift.
+- `R3-test-cwd-root`: resolve fixture paths independently of the launch directory.
+- `R3-negative-body-font-guard`: make the negative assertion reject any hardcoded
+  family, not just a single-quoted literal directly after the colon.
+
+### WU6 — Consolidate the token source of truth
 
 - Resolve the `index.css :root` vs `pages/pos/types.ts` `C` duplication so the
   palette has one documented owner.
@@ -153,7 +180,64 @@ Roughly 250-300 authored changed lines across the four work units — under the
   added to `pos-fonts.test.ts` (6/6 → 9/9). The worker **explicitly did not claim
   a RED run** for those three because they were written after the implementation.
 - Parent spot check: `tsc` 0, **87/87** tests, `build` 0.
-- Native assessment and commit: pending.
+- Commit: `0fd1b6f`.
+- Native assessment: **medium**, `executable_change` on `frontend/index.html`;
+  `review_due: true`, reason `slice_budget_reached` (542 lines).
+- Native review ran and was **approved**. Lineage `review-93d2bbfcc3f6ee39`,
+  one lens (`review-reliability`), correction budget 200 lines, zero corrections
+  consumed. Acknowledgement burned the authority
+  (`gentle-ai.review-acknowledged/v1`, `authority: burned`).
+- Reviewed boundary advanced to `0fd1b6f`.
+
+### Advisory findings from the native review (none blocking)
+
+- `R3-cdn-render-blocking` — **worth acting on.** The font stylesheet is a
+  synchronous `<link>` to a third-party origin in the document head, so first
+  paint is blocked on that request. On a POS terminal with restricted or flaky
+  egress the application holds blank until the request fails or times out: a
+  cosmetic font choice becomes an availability dependency for checkout. This is
+  the same class of fragility that caused the original bug. Raised with the user
+  as a decision, not actioned unilaterally.
+- `R3-font-token-no-fallback` — `FONT.sans` / `FONT.mono` are bare `var()`
+  references with no fallback inside the call, so a missing stylesheet erases the
+  typography contract silently at computed-value time.
+- `R3-sz-target-dead-token` — `SZ.target` is still unreferenced; WU3 consumes it.
+  The reviewer flagged exactly the dead-export class already corrected once in
+  this slice.
+- `R3-css-wiring-unguarded` — the structural test proves the `@keyframes` exist
+  but never that the POS entry imports the stylesheet or that every used
+  animation name is a declared one. The original regression could return green.
+- `R3-scale-adoption-unasserted` — the no-sizes-outside-the-scale invariant is
+  verified by hand, not by a test; a new literal size will not turn the suite red.
+- `R3-test-cwd-root` — fixture paths resolve from `process.cwd()`, so a runner
+  started outside `frontend/` errors with ENOENT instead of failing on behavior.
+- `R3-negative-body-font-guard` — the "body never hardcodes a family" assertion
+  only rejects a single-quoted literal directly after the colon; double quotes or
+  extra whitespace satisfy it.
+
+### WU3 — Self-hosted font delivery — DONE
+
+- Route: **delegated** (one writer, `gentle-ai-worker`), then one parent
+  correction.
+- Six latin-subset `woff2` files fetched from `fonts.gstatic.com` (public,
+  unauthenticated) into `frontend/public/fonts/`, each verified to start with the
+  bytes `wOF2` and exceed 1 kB so a truncated download or an error page turns the
+  suite red.
+- Only the `latin` subset (`U+0000-00FF`) was vendored; it covers Spanish
+  (á é í ó ú ñ ü ¿ ¡ ° $). The `latin-ext` blocks were discarded.
+- The `preconnect` hints and the Google Fonts `<link>` are gone from `index.html`.
+  `FONT.sans` / `FONT.mono` gained in-`var()` fallbacks.
+- **Parent correction:** the writer vendored Sora 400/500/600/700 as four files
+  and flagged the duplication. Parent verified all four are byte-identical
+  (`sha256:811E1196…`, 25284 bytes) — Google serves Sora as a variable font — while
+  DM Mono 400/500 differ, proving DM Mono is the static one. Collapsed Sora to one
+  `sora-var.woff2` declared over `font-weight: 100 800`.
+  **127.9 kB in 6 files → 53.8 kB in 3 files**, 76 kB of exact duplication removed.
+- Parent verification: `tsc` 0, **90/90** tests (87 baseline + 3), `build` 0.
+  On the built artifact: `dist/fonts` holds the 3 files, `dist/assets/*.css` has 3
+  `@font-face` and 3 `/fonts/` references, and **0** matches for `fonts.g`.
+- Writer self-reported RED 5 failed / 7 passed before the implementation, then
+  GREEN 12/12.
 
 ### WU1 — Webfont and animation loading — DONE
 

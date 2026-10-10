@@ -43,8 +43,8 @@ export const SZ = {
 
 // Single owner of the two font roles: Sora for text, DM Mono for figures.
 export const FONT = {
-  sans: 'var(--font-sans)',
-  mono: 'var(--font-mono)'
+  sans: 'var(--font-sans, system-ui, -apple-system, sans-serif)',
+  mono: 'var(--font-mono, ui-monospace, Cascadia Mono, monospace)'
 } as const;
 
 // ── Nav items ────────────────────────────────────────────────
