@@ -29,3 +29,26 @@
 
 .item-enter { animation: slideIn 0.2s ease forwards; }
 .flash-green { animation: flashGreen 0.6s ease forwards; }
+
+/* ============================================================
+   HOVER AFFORDANCES MIRRORED ON KEYBOARD FOCUS
+   ============================================================
+   Tabbing through the POS now shows the same feedback as pointing
+   at it, instead of only the `button:focus-visible` outline.
+
+   These rules are the single owner of the hover and focus states
+   for the two button types they name; the redundant
+   `onMouseEnter`/`onMouseLeave` handlers were removed so the state
+   is not written twice by two owners that must stay in sync. Only
+   the resting values remain inline.
+
+   `!important` is required, not decorative: those resting values are
+   style-attribute declarations, and a style-attribute declaration
+   outranks any normal author rule. A plain
+   `.hover-surface:focus-visible { background: ... }` would
+   therefore never apply and the focus state would stay invisible. */
+.hover-surface:hover,
+.hover-surface:focus-visible { background: var(--bg) !important; }
+
+.hover-card:hover,
+.hover-card:focus-visible { border-color: var(--accent) !important; background: var(--accentBg) !important; }

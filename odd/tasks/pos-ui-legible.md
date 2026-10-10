@@ -215,6 +215,39 @@ Roughly 250-300 authored changed lines across the four work units — under the
   only rejects a single-quoted literal directly after the colon; double quotes or
   extra whitespace satisfy it.
 
+### WU4 — Targets, grid and focus affordances — DONE
+
+- Route: **delegated** (one writer, `gentle-ai-worker`) + one parent correction.
+- `SZ.target` (34) now drives the minus, plus and delete controls. The delete hit
+  area went from roughly 16px tall to 34, with the glyph from 12 to 16.
+- Frequent products: `repeat(2, 1fr)` → `repeat(auto-fill, minmax(200px, 1fr))`.
+- `hover-surface` / `hover-card` added to `pos.css` so keyboard focus shows the
+  same feedback as hover. `R3-sz-target-dead-token` closed.
+- **Parent correction, two parts.** First: the spec I wrote was dead code. Both
+  buttons paint their resting background and border as inline styles, and a
+  style-attribute declaration outranks any normal author rule, so a plain
+  `:focus-visible` rule could never win. The writer added `!important` and flagged
+  it correctly — that part is load-bearing and `index.css` already uses the idiom
+  for the same reason. Second: the worker had left the `onMouseEnter` /
+  `onMouseLeave` handlers in place alongside the new CSS, which would write the
+  same state from two owners that must stay in sync or hover flickers. Parent
+  removed the four redundant handlers so **CSS is the single owner** of the hover
+  and focus states and only the resting values stay inline. The two remaining
+  handler pairs in the file are a colour change on delete and a conditional
+  background on `Cobrar`; both are out of this work unit's scope.
+- Cart-row fit at the 360px minimum was walked through the box model: roughly
+  110px is left for the product name (about 130px before), which is still
+  positive, so nothing shrinks and nothing overflows. The absorber is the
+  already-`flex: 1, minWidth: 0` product column. The gap values were left alone —
+  the brief made shrinking them conditional on overflow, and there is none. If
+  the name column needs more room, `SZ.cartMin` is the lever, not the targets.
+- `C.bg` / `C.accent` / `C.accentBg` were checked against the `index.css`
+  custom properties: all three match, and `pos.css` hardcodes no colour that
+  `index.css` owns.
+- Parent verification: `tsc` 0, **90/90** tests (unchanged, as required),
+  `build` 0, `fontSize: \d` still returns 0, and the hover rules survive
+  minification in the built CSS.
+
 ### WU3 — Self-hosted font delivery — DONE
 
 - Route: **delegated** (one writer, `gentle-ai-worker`), then one parent

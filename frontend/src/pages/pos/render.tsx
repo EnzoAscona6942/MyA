@@ -105,15 +105,13 @@ export const POS: FC = () => {
             overflow: 'hidden', marginBottom: 16, boxShadow: 'none',
           }}>
             {logic.productosFiltrados.map((p, i) => (
-              <button key={p.id} onClick={() => { logic.agregarAlCarrito(p); logic.setBusqueda(''); }} style={{
+              <button key={p.id} className="hover-surface" onClick={() => { logic.agregarAlCarrito(p); logic.setBusqueda(''); }} style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '11px 16px', border: 'none', background: C.white, cursor: 'pointer',
                 borderTop: i > 0 ? '1px solid ' + C.border : 'none',
                 transition: 'background 0.1s', textAlign: 'left',
                 fontFamily: FONT.sans,
               }}
-                onMouseEnter={e => e.currentTarget.style.background = C.bg}
-                onMouseLeave={e => e.currentTarget.style.background = C.white}
               >
                 <div>
                   <div style={{ fontSize: FS.base, fontWeight: 600, color: C.text }}>{p.nombre}</div>
@@ -138,15 +136,13 @@ export const POS: FC = () => {
             <p style={{ fontSize: FS.sm, fontWeight: 600, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
               Productos frecuentes
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, overflowY: 'auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, overflowY: 'auto' }}>
               {logic.frecuentes.map(p => (
-                <button key={p.id} onClick={() => logic.agregarAlCarrito(p)} style={{
+                <button key={p.id} className="hover-card" onClick={() => logic.agregarAlCarrito(p)} style={{
                   padding: '12px 14px', borderRadius: 0, border: '1px solid ' + C.border,
                   background: C.white, cursor: 'pointer', textAlign: 'left',
                   transition: 'all 0.15s', fontFamily: FONT.sans,
                 }}
-                  onMouseEnter={e => { e.currentTarget.style.border = '1px solid ' + C.accent; e.currentTarget.style.background = C.accentBg; }}
-                  onMouseLeave={e => { e.currentTarget.style.border = '1px solid ' + C.border; e.currentTarget.style.background = C.white; }}
                 >
                   <div style={{ fontSize: FS.base, fontWeight: 600, color: C.text, marginBottom: 4, lineHeight: 1.3 }}>{p.nombre}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -229,7 +225,7 @@ export const POS: FC = () => {
                 {/* Controles cantidad */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <button onClick={() => logic.cambiarCantidad(item.id, -1)} style={{
-                    width: 24, height: 24, borderRadius: 0, border: '1px solid ' + C.border,
+                    width: SZ.target, height: SZ.target, borderRadius: 0, border: '1px solid ' + C.border,
                     background: C.white, cursor: 'pointer', fontSize: FS.base, color: C.textMid,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
                   }}>−</button>
@@ -237,7 +233,7 @@ export const POS: FC = () => {
                     {item.cantidad}
                   </span>
                   <button onClick={() => logic.cambiarCantidad(item.id, 1)} style={{
-                    width: 24, height: 24, borderRadius: 0, border: '1px solid ' + C.border,
+                    width: SZ.target, height: SZ.target, borderRadius: 0, border: '1px solid ' + C.border,
                     background: C.white, cursor: 'pointer', fontSize: FS.base, color: C.textMid,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
                   }}>+</button>
@@ -250,13 +246,13 @@ export const POS: FC = () => {
                   </div>
                   <button onClick={() => logic.quitarItem(item.id)} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: C.textLight, padding: '2px 0', marginTop: 2,
+                    color: C.textLight, padding: '2px 0', marginTop: 2, minHeight: SZ.target,
                     display: 'flex', alignItems: 'center', justifyContent: 'flex-end', width: '100%',
                   }}
                     onMouseEnter={e => e.currentTarget.style.color = C.danger}
                     onMouseLeave={e => e.currentTarget.style.color = C.textLight}
                   >
-                    <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" />
                     </svg>
                   </button>
