@@ -5,7 +5,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../lib/api';
-import { C, type CartItem, type VentaFront, type ModalType, type MetodoPago } from './types';
+import { C, type CartItem, type CajaActiva, type VentaFront, type ModalType, type MetodoPago } from './types';
+import type { ApiError } from '../../types/api';
 import type { ChangeEvent, KeyboardEvent, FocusEvent } from 'react';
 
 // ============================================================
@@ -101,6 +102,27 @@ interface UsePOSLogicProps {
   onError?: (msg: string) => void;
 }
 
+// ── Error de API ─────────────────────────────────────────────
+//
+// `api` lanza el body parseado, NO una `Error`: `message` nunca se puebla y
+// el status HTTP no llega a este modulo. Por eso todo catch estrecha aca en
+// lugar de leer `message`.
+//
+// Solo se verifica `error`, el campo discriminante: es el único que las rutas
+// de caja garantizan. `GET /caja/activa` responde 404 con
+// `{ error: 'No hay una caja abierta' }` y sin `code`, así que `code` queda
+// como campo declarado y nunca leído.
+const isApiError = (e: unknown): e is ApiError =>
+  typeof e === 'object' && e !== null && 'error' in e && typeof e.error === 'string';
+
+// Mensaje exacto del 404 de `GET /caja/activa`. Como el cliente descarta el
+// status, esa respuesta es indistinguible de un 500 salvo por el texto.
+const NO_CAJA_ABIERTA_API_MSG = 'No hay una caja abierta';
+
+// Copy de cara al usuario. Único dueño: el fetch lo deja como estado y
+// `confirmarCobro` levanta el mismo texto, así que ambas rutas dicen lo mismo.
+const NO_CAJA_ABIERTA_MSG = 'No hay una caja abierta. Abrí caja para poder cobrar.';
+
 export function usePOSLogic({ onError }: UsePOSLogicProps = {}) {
   const { usuario } = useAuth();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -114,6 +136,8 @@ export function usePOSLogic({ onError }: UsePOSLogicProps = {}) {
   const [modal, setModal] = useState<ModalType>(null);
   const [ventaExitosa, setVentaExitosa] = useState<VentaFront | null>(null);
   const [error, setError] = useState('');
+  const [cajaActivaId, setCajaActivaId] = useState<number | null>(null);
+  const [cajaActivaMsg, setCajaActivaMsg] = useState('');
 
   // Flash effect
   const [flashId, setFlashId] = useState<number | null>(null);
@@ -187,11 +211,65 @@ export function usePOSLogic({ onError }: UsePOSLogicProps = {}) {
     fetchFrecuentes();
   }, []);
 
+  // ── Resolver caja activa ───────────────────────────────────
+  // El POS necesita un id de caja real antes de cobrar. Antes caía al
+  // hardcode '1' cuando la sesión no traía `cajaId`, y esa caja podía no
+  // existir o estar cerrada.
+  useEffect(() => {
+    const fetchCajaActiva = async () => {
+      const sinCaja = () => {
+        setCajaActivaId(null);
+        setCajaActivaMsg(NO_CAJA_ABIERTA_MSG);
+      };
+
+      try {
+        const caja = await api.get<CajaActiva>('/caja/activa');
+        const id = caja?.id;
+        // Un id ausente o no numérico se trata igual que un 404: no hay caja
+        // con la que cobrar, y el payload se armaría con `NaN`.
+        if (typeof id !== 'number' || Number.isNaN(id)) {
+          sinCaja();
+          return;
+        }
+        setCajaActivaId(id);
+        setCajaActivaMsg('');
+        // `CierreCaja` lee la misma clave: se sincroniza para no romperlo.
+        localStorage.setItem('cajaId', String(id));
+      } catch (e: unknown) {
+        // Sin caja abierta es un estado normal del POS, no un fallo: el botón
+        // de cobrar queda deshabilitado y se avisa en pantalla.
+        if (isApiError(e) && e.error === NO_CAJA_ABIERTA_API_MSG) {
+          sinCaja();
+          return;
+        }
+        console.error('Error cargando caja activa', e);
+        sinCaja();
+      }
+    };
+    fetchCajaActiva();
+  }, []);
+
   // ── Confirmar cobro ────────────────────────────────────────
+  //
+  // Se exporta directo como `onConfirm` de `ModalPago`, que ya valida el monto
+  // recibido contra el total con su propio estado y deshabilita el botón si no
+  // alcanza. Antes había un `handleConfirmarPago` intermedio que re-validaba
+  // contra un `metodoPago`/`recibido` del hook que nadie actualizaba: siempre
+  // `'EFECTIVO'` y `''`, así que `puedeConfirmar` era siempre falso y el cobro
+  // moría ahí sin llegar al POST. Que el gate viva en un solo lugar es el
+  // punto: no re-derivar datos que el modal ya resolvió.
   const confirmarCobro = async (data: { metodo: MetodoPago; montoRecibido: number; vuelto: number }) => {
-    const cajaId = localStorage.getItem('cajaId') || '1';
+    // Sin caja resuelta no hay contra qué registrar la venta, así que la
+    // request ni se envía: cobrando igual, el backend respondería 404 "Caja" o
+    // 409 "La caja no está abierta".
+    if (cajaActivaId === null) {
+      setError(NO_CAJA_ABIERTA_MSG);
+      setTimeout(() => setError(''), 3500);
+      return;
+    }
+
     const payload = {
-      cajaId: parseInt(cajaId),
+      cajaId: cajaActivaId,
       items: carrito.map(i => ({ productoId: i.id, cantidad: i.cantidad })),
       descuento,
       metodoPago: data.metodo,
@@ -216,8 +294,10 @@ export function usePOSLogic({ onError }: UsePOSLogicProps = {}) {
       setVentaExitosa(ventaFront);
       setModal('ticket');
     } catch (e: unknown) {
-      const err = e as { message?: string };
-      setError(`Error al cobrar: ${err.message || 'Error desconocido'}`);
+      // `api` lanza el body plano `{ error, code }`, no una `Error`: leer
+      // `message` daba siempre `undefined` y la UI mostraba "Error desconocido".
+      const detalle = isApiError(e) ? e.error : '';
+      setError(`Error al cobrar: ${detalle || 'Error desconocido'}`);
       setTimeout(() => setError(''), 3500);
       setModal(null);
     }
@@ -250,32 +330,12 @@ export function usePOSLogic({ onError }: UsePOSLogicProps = {}) {
     setDescuento(parseFloat(e.target.value) || 0);
   };
 
-  const handleRecibidoChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setRecibido(e.target.value);
-  };
-
   const handleMontoFocus = (e: FocusEvent<HTMLInputElement>) => {
     e.currentTarget.style.border = `1px solid ${C.accent}`;
   };
 
   const handleMontoBlur = (e: FocusEvent<HTMLInputElement>) => {
     e.currentTarget.style.border = `1px solid ${C.border}`;
-  };
-
-  const handleMetodoChange = (metodo: MetodoPago) => {
-    setMetodoPago(metodo);
-  };
-
-  // Estado para método de pago (local al hook)
-  const [metodoPago, setMetodoPago] = useState<MetodoPago>('EFECTIVO');
-  const [recibido, setRecibido] = useState('');
-
-  const vuelto = metodoPago === 'EFECTIVO' && recibido ? parseFloat(recibido) - total : null;
-  const puedeConfirmar = metodoPago !== 'EFECTIVO' || (recibido && parseFloat(recibido) >= total);
-
-  const handleConfirmarPago = () => {
-    if (!puedeConfirmar) return;
-    confirmarCobro({ metodo: metodoPago, montoRecibido: parseFloat(recibido) || total, vuelto: vuelto || 0 });
   };
 
   const handleCloseModal = () => setModal(null);
@@ -294,24 +354,18 @@ return {
     modal,
     ventaExitosa,
     error,
+    cajaActivaId,
+    cajaActivaMsg,
     scanning: false,
     flashId,
     searchRef,
-    metodoPago,
-    recibido,
-    setRecibido,
-    vuelto,
-    puedeConfirmar,
     subtotal,
     total,
     // Handlers
     handleSearchKeyDown,
     handleDescuentoChange,
-    handleRecibidoChange,
     handleMontoFocus,
     handleMontoBlur,
-    handleMetodoChange,
-    handleConfirmarPago,
     handleCloseModal,
     handleNuevaVenta,
     agregarAlCarrito,
@@ -322,6 +376,6 @@ return {
     setError,
     setModal,
     setDescuento,
-    setMetodoPago,
+    confirmarCobro,
   };
 }

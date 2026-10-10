@@ -22,6 +22,11 @@ import type { FC } from 'react';
 export const POS: FC = () => {
   const logic = usePOSLogic();
 
+  // Cobrar exige las dos cosas: un carrito con items y una caja abierta. El
+  // bloque de TOTAL abajo mira solo el carrito, asi que esta bandera no se
+  // comparte con el.
+  const cobrarHabilitado = logic.carrito.length > 0 && logic.cajaActivaId !== null;
+
   return (
     <div style={{ display: 'flex', height: '100vh', gap: 0 }}>
 
@@ -310,22 +315,33 @@ export const POS: FC = () => {
             </span>
           </div>
 
+          {/* Aviso de caja cerrada: explica por qué cobrar está apagado */}
+          {logic.cajaActivaId === null && logic.cajaActivaMsg && (
+            <p style={{
+              fontSize: FS.xs, color: C.amber, background: C.amberBg,
+              border: '1px solid ' + C.border, padding: '8px 12px',
+              marginBottom: 10, lineHeight: 1.4, fontFamily: FONT.sans,
+            }}>
+              {logic.cajaActivaMsg}
+            </p>
+          )}
+
           {/* Botón cobrar */}
           <button
-            onClick={() => logic.carrito.length > 0 && logic.setModal('pago')}
-            disabled={logic.carrito.length === 0}
+            onClick={() => cobrarHabilitado && logic.setModal('pago')}
+            disabled={!cobrarHabilitado}
             style={{
               width: '100%', padding: '14px', borderRadius: 0, border: 'none',
-              background: logic.carrito.length > 0 ? C.accent : 'transparent',
-              color: logic.carrito.length > 0 ? C.text : C.textLight,
+              background: cobrarHabilitado ? C.accent : 'transparent',
+              color: cobrarHabilitado ? C.text : C.textLight,
               borderTop: '1px dashed ' + C.border,
               borderBottom: '1px dashed ' + C.border,
-              fontSize: FS.md, fontWeight: 700, cursor: logic.carrito.length > 0 ? 'pointer' : 'not-allowed',
+              fontSize: FS.md, fontWeight: 700, cursor: cobrarHabilitado ? 'pointer' : 'not-allowed',
               fontFamily: FONT.sans, transition: 'all 0.2s',
               letterSpacing: '-0.2px',
             }}
-            onMouseEnter={e => { if (logic.carrito.length > 0) e.currentTarget.style.background = C.accentHov; }}
-            onMouseLeave={e => { if (logic.carrito.length > 0) e.currentTarget.style.background = C.accent; }}
+            onMouseEnter={e => { if (cobrarHabilitado) e.currentTarget.style.background = C.accentHov; }}
+            onMouseLeave={e => { if (cobrarHabilitado) e.currentTarget.style.background = C.accent; }}
           >
             Cobrar {logic.carrito.length > 0 ? fmt(logic.total) : ''}
           </button>
@@ -337,7 +353,7 @@ export const POS: FC = () => {
         <ModalPago
           total={logic.total}
           descuento={logic.descuento}
-          onConfirm={logic.handleConfirmarPago}
+          onConfirm={logic.confirmarCobro}
           onClose={logic.handleCloseModal}
         />
       )}
