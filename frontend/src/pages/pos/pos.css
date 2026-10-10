@@ -1,0 +1,31 @@
+/* ============================================================
+   POS - ANIMATIONS
+   ============================================================
+   Carries the `@keyframes` and the animation classes the POS
+   components reference. Global resets, the `body` font rule and
+   the scrollbar rules stay owned by `src/index.css`.
+   ============================================================ */
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scanPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(22,163,74,0.4); }
+  70%  { box-shadow: 0 0 0 10px rgba(22,163,74,0); }
+  100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
+}
+
+@keyframes flashGreen {
+  0%   { background: #DCFCE7; }
+  100% { background: #FFFFFF; }
+}
+
+.item-enter { animation: slideIn 0.2s ease forwards; }
+.flash-green { animation: flashGreen 0.6s ease forwards; }

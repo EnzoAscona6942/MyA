@@ -7,4 +7,3 @@ export * from './icons';
 export * from './components';
 export * from './logic';
 export * from './render';
-export * from './styles';

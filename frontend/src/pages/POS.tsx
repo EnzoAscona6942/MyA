@@ -3,7 +3,7 @@
 // ============================================================
 
 // Import styles (must run first)
-import './pos/styles';
+import './pos/pos.css';
 
 // Export main component
 export { default } from './pos/render';
