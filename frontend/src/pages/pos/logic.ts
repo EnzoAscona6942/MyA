@@ -5,8 +5,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../lib/api';
-import { C, METODOS_PAGO, fmt, now, type CartItem, type VentaFront, type ModalType, type MetodoPago } from './index';
-import type { ChangeEvent, KeyboardEvent, MouseEvent, FocusEvent } from 'react';
+import { C, type CartItem, type VentaFront, type ModalType, type MetodoPago } from './types';
+import type { ChangeEvent, KeyboardEvent, FocusEvent } from 'react';
 
 // ============================================================
 // HOOKS PERSONALIZADOS

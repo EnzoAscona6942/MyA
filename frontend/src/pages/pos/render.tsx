@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState } from 'react';
-import { C, FS, FONT, SZ, NAV_ITEMS, METODOS_PAGO, fmt, now, type CartItem, type VentaFront, type ModalType, type MetodoPago } from './index';
+import { C, FS, FONT, SZ, fmt } from './types';
 import { Sidebar, ModalPago, TicketVenta } from './components';
 import { usePOSLogic } from './logic';
 import Stock from '../Stock';
@@ -13,7 +13,7 @@ import AuditLog from '../AuditLog';
 import CierreCaja from '../CierreCaja';
 import Usuarios from '../Usuarios';
 import Productos from '../Productos';
-import type { FC, ChangeEvent, KeyboardEvent, FocusEvent, MouseEvent } from 'react';
+import type { FC } from 'react';
 
 // ============================================================
 // POS COMPONENT

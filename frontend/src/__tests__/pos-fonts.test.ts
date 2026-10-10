@@ -97,13 +97,17 @@ describe('POS webfonts and animations', () => {
       expect(css).toContain('@keyframes slideIn');
       expect(css).toContain('@keyframes fadeIn');
       expect(css).toContain('@keyframes scanPulse');
-      expect(css).toContain('@keyframes flashGreen');
+      // `flashGreen` is deliberately absent. It shipped with a
+      // `.flash-green` class that no component ever applied: the
+      // add-to-cart highlight is driven by `logic.flashId` with an inline
+      // background on the cart row, so the keyframes animated nothing.
+      expect(css).not.toContain('flashGreen');
     });
 
-    it('declares the item-enter and flash-green classes', () => {
+    it('declares the item-enter class and no dead flash-green class', () => {
       const css = read(POS_STYLESHEET);
       expect(css).toMatch(/\.item-enter\s*\{/);
-      expect(css).toMatch(/\.flash-green\s*\{/);
+      expect(css).not.toMatch(/\.flash-green\s*\{/);
     });
   });
 

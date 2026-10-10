@@ -2,11 +2,11 @@
 // POS - COMPONENTS
 // ============================================================
 
-import { useState, useEffect, useRef, useCallback, useContext } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { api } from '../../lib/api';
-import { C, FS, FONT, NAV_ITEMS, METODOS_PAGO, fmt, now, iconMap, type IconName, type ModalType, type MetodoPago, type CartItem, type VentaFront, type CajaActiva } from './index';
-import type { FC, ReactNode, ChangeEvent, KeyboardEvent, MouseEvent, FormEvent } from 'react';
+import { C, FS, FONT, NAV_ITEMS, METODOS_PAGO, fmt, now, type MetodoPago, type VentaFront } from './types';
+import { iconMap } from './icons';
+import type { FC } from 'react';
 
 // ============================================================
 // SIDEBAR
@@ -68,14 +68,14 @@ export const Sidebar: FC<SidebarProps> = ({ activeModule, setActiveModule }) => 
                 padding: '9px 12px', borderRadius: 0, border: 'none', cursor: 'pointer',
                 marginBottom: 2, transition: 'all 0.15s',
                 background: active ? 'rgba(22,163,74,0.15)' : 'transparent',
-                color: active ? '#10B981' : '#9CA3AF',
+                color: active ? C.accent : '#9CA3AF',
               }}
               onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#fff'; } }}
               onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF'; } }}
             >
               <Icon size={16} color="currentColor" />
               <span style={{ fontSize: FS.sm, fontWeight: active ? 600 : 400 }}>{label}</span>
-              {active && <div style={{ marginLeft: 'auto', width: 5, height: 5, borderRadius: '50%', background: '#10B981' }} />}
+              {active && <div style={{ marginLeft: 'auto', width: 5, height: 5, borderRadius: '50%', background: C.accent }} />}
             </button>
           );
         })}
@@ -86,7 +86,7 @@ export const Sidebar: FC<SidebarProps> = ({ activeModule, setActiveModule }) => 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px' }}>
           <div style={{
             width: 30, height: 30, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #16A34A, #059669)',
+            background: `linear-gradient(135deg, #16A34A, ${C.accentHov})`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <span style={{ color: '#fff', fontSize: FS.sm, fontWeight: 600 }}>
@@ -100,7 +100,7 @@ export const Sidebar: FC<SidebarProps> = ({ activeModule, setActiveModule }) => 
             <div style={{ color: '#6B7280', fontSize: FS.xs }}>{usuario?.rol || 'Rol'}</div>
           </div>
           <button onClick={logout} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: 4 }}
-            onMouseEnter={e => e.currentTarget.style.color = '#EF4444'}
+            onMouseEnter={e => e.currentTarget.style.color = C.danger}
             onMouseLeave={e => e.currentTarget.style.color = '#6B7280'}
           >
             <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -137,30 +137,30 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
       animation: 'fadeIn 0.15s ease',
     }}>
       <div style={{
-        background: '#FFFFFF', borderRadius: 0, width: 420, padding: 32,
+        background: C.white, borderRadius: 0, width: 420, padding: 32,
         boxShadow: 'none',
         animation: 'slideIn 0.2s ease',
       }}>
-        <h2 style={{ fontSize: FS.lg, fontWeight: 700, color: '#171717', marginBottom: 6 }}>Confirmar pago</h2>
-        <p style={{ fontSize: FS.sm, color: '#52525B', marginBottom: 24 }}>Seleccioná el método de cobro</p>
+        <h2 style={{ fontSize: FS.lg, fontWeight: 700, color: C.text, marginBottom: 6 }}>Confirmar pago</h2>
+        <p style={{ fontSize: FS.sm, color: C.textMid, marginBottom: 24 }}>Seleccioná el método de cobro</p>
 
         {/* Total */}
-        <div style={{ background: '#D1FAE5', borderRadius: 0, padding: '16px 20px', marginBottom: 24, textAlign: 'center' }}>
+        <div style={{ background: C.accentBg, borderRadius: 0, padding: '16px 20px', marginBottom: 24, textAlign: 'center' }}>
           {descuento > 0 && (
-            <div style={{ fontSize: FS.sm, color: '#52525B', marginBottom: 2 }}>
-              Descuento aplicado: <span style={{ color: '#10B981', fontWeight: 600, fontFamily: FONT.mono }}>- {fmt(descuento)}</span>
+            <div style={{ fontSize: FS.sm, color: C.textMid, marginBottom: 2 }}>
+              Descuento aplicado: <span style={{ color: C.accent, fontWeight: 600, fontFamily: FONT.mono }}>- {fmt(descuento)}</span>
             </div>
           )}
-          <div style={{ fontSize: FS.display, fontWeight: 700, color: '#10B981', fontFamily: FONT.mono }}>{fmt(total)}</div>
+          <div style={{ fontSize: FS.display, fontWeight: 700, color: C.accent, fontFamily: FONT.mono }}>{fmt(total)}</div>
         </div>
 
         {/* Métodos de pago */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginBottom: 20 }}>
           {METODOS_PAGO.map(m => (
             <button key={m.id} onClick={() => setMetodo(m.id)} style={{
-              padding: '8px 4px', borderRadius: 0, border: `1px solid ${metodo === m.id ? '#10B981' : 'rgba(0,0,0,0.15)'}`,
-              background: metodo === m.id ? '#D1FAE5' : '#FFFFFF',
-              color: metodo === m.id ? '#10B981' : '#52525B',
+              padding: '8px 4px', borderRadius: 0, border: `1px solid ${metodo === m.id ? C.accent : C.border}`,
+              background: metodo === m.id ? C.accentBg : C.white,
+              color: metodo === m.id ? C.accent : C.textMid,
               fontSize: FS.sm, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
               fontFamily: FONT.sans,
             }}>
@@ -172,7 +172,7 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
         {/* Monto recibido (solo efectivo) */}
         {metodo === 'EFECTIVO' && (
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: FS.sm, fontWeight: 600, color: '#52525B', marginBottom: 6 }}>
+            <label style={{ display: 'block', fontSize: FS.sm, fontWeight: 600, color: C.textMid, marginBottom: 6 }}>
               Monto recibido
             </label>
             <input
@@ -183,18 +183,18 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
               autoFocus
               style={{
                 width: '100%', padding: '10px 14px', borderRadius: 0,
-                border: `1px solid rgba(0,0,0,0.15)`, fontSize: FS.md,
+                border: `1px solid ${C.border}`, fontSize: FS.md,
                 fontFamily: FONT.mono, fontWeight: 500,
-                outline: 'none', color: '#171717',
+                outline: 'none', color: C.text,
                 transition: 'border 0.15s',
               }}
-              onFocus={e => e.currentTarget.style.border = '1px solid #10B981'}
-              onBlur={e => e.currentTarget.style.border = '1px solid rgba(0,0,0,0.15)'}
+              onFocus={e => e.currentTarget.style.border = `1px solid ${C.accent}`}
+              onBlur={e => e.currentTarget.style.border = `1px solid ${C.border}`}
             />
             {vuelto !== null && vuelto >= 0 && (
-              <div style={{ marginTop: 8, padding: '8px 12px', background: '#FEF3C7', borderRadius: 0, display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: FS.sm, color: '#52525B' }}>Vuelto</span>
-                <span style={{ fontSize: FS.md, fontWeight: 700, color: '#F59E0B', fontFamily: FONT.mono }}>{fmt(vuelto)}</span>
+              <div style={{ marginTop: 8, padding: '8px 12px', background: C.amberBg, borderRadius: 0, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: FS.sm, color: C.textMid }}>Vuelto</span>
+                <span style={{ fontSize: FS.md, fontWeight: 700, color: C.amber, fontFamily: FONT.mono }}>{fmt(vuelto)}</span>
               </div>
             )}
           </div>
@@ -203,12 +203,12 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
         {/* Botones */}
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{
-            flex: 1, padding: '12px', borderRadius: 0, border: `1px dashed rgba(0,0,0,0.15)`,
-            background: 'transparent', color: '#52525B', fontSize: FS.base, fontWeight: 600,
+            flex: 1, padding: '12px', borderRadius: 0, border: `1px dashed ${C.border}`,
+            background: 'transparent', color: C.textMid, fontSize: FS.base, fontWeight: 600,
             cursor: 'pointer', fontFamily: FONT.sans, transition: 'all 0.15s',
           }}
-            onMouseEnter={e => e.currentTarget.style.background = '#F5F5F3'}
-            onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
+            onMouseEnter={e => e.currentTarget.style.background = C.bg}
+            onMouseLeave={e => e.currentTarget.style.background = C.white}
           >
             Cancelar
           </button>
@@ -217,14 +217,14 @@ export const ModalPago: FC<ModalPagoProps> = ({ total, descuento, onConfirm, onC
             disabled={!puedeConfirmar}
             style={{
               flex: 2, padding: '12px', borderRadius: 0, border: 'none',
-              background: puedeConfirmar ? '#10B981' : '#D1D5DB',
+              background: puedeConfirmar ? C.accent : '#D1D5DB',
               color: '#fff', fontSize: FS.base, fontWeight: 700,
               cursor: puedeConfirmar ? 'pointer' : 'not-allowed',
               fontFamily: FONT.sans, transition: 'all 0.15s',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}
-            onMouseEnter={e => { if (puedeConfirmar) e.currentTarget.style.background = '#059669'; }}
-            onMouseLeave={e => { if (puedeConfirmar) e.currentTarget.style.background = '#10B981'; }}
+            onMouseEnter={e => { if (puedeConfirmar) e.currentTarget.style.background = C.accentHov; }}
+            onMouseLeave={e => { if (puedeConfirmar) e.currentTarget.style.background = C.accent; }}
           >
             <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />
@@ -253,51 +253,51 @@ export const TicketVenta: FC<TicketVentaProps> = ({ venta, onNuevaVenta }) => {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
     }}>
       <div style={{
-        background: '#FFFFFF', borderRadius: 0, width: 360, padding: '28px 32px',
+        background: C.white, borderRadius: 0, width: 360, padding: '28px 32px',
         boxShadow: 'none', animation: 'slideIn 0.25s ease',
         textAlign: 'center',
       }}>
         {/* Check animado */}
         <div style={{
-          width: 64, height: 64, borderRadius: '50%', background: '#D1FAE5',
+          width: 64, height: 64, borderRadius: '50%', background: C.accentBg,
           display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
           animation: 'scanPulse 0.6s ease',
         }}>
-          <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
 
-        <h2 style={{ fontSize: FS.lg, fontWeight: 700, color: '#171717', marginBottom: 4 }}>¡Venta registrada!</h2>
-        <p style={{ fontSize: FS.xs, color: '#A1A1AA', marginBottom: 24 }}>#{String(venta.id).padStart(6, '0')} · {now()}</p>
+        <h2 style={{ fontSize: FS.lg, fontWeight: 700, color: C.text, marginBottom: 4 }}>¡Venta registrada!</h2>
+        <p style={{ fontSize: FS.xs, color: C.textLight, marginBottom: 24 }}>#{String(venta.id).padStart(6, '0')} · {now()}</p>
 
         {/* Detalle */}
-        <div style={{ textAlign: 'left', background: '#F5F5F3', borderRadius: 0, padding: 16, marginBottom: 20 }}>
+        <div style={{ textAlign: 'left', background: C.bg, borderRadius: 0, padding: 16, marginBottom: 20 }}>
           {venta.items.map((item, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: FS.base, color: '#52525B', fontFamily: FONT.sans }}>{item.cantidad}× {item.nombre}</span>
-              <span style={{ fontSize: FS.sm, fontWeight: 600, color: '#171717', fontFamily: FONT.mono }}>{fmt(item.subtotal)}</span>
+              <span style={{ fontSize: FS.base, color: C.textMid, fontFamily: FONT.sans }}>{item.cantidad}× {item.nombre}</span>
+              <span style={{ fontSize: FS.sm, fontWeight: 600, color: C.text, fontFamily: FONT.mono }}>{fmt(item.subtotal)}</span>
             </div>
           ))}
-          <div style={{ borderTop: `1px dashed rgba(0,0,0,0.15)`, marginTop: 10, paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: FS.base, fontWeight: 700, color: '#171717' }}>Total</span>
-            <span style={{ fontSize: FS.md, fontWeight: 700, color: '#10B981', fontFamily: FONT.mono }}>{fmt(venta.total)}</span>
+          <div style={{ borderTop: `1px dashed ${C.border}`, marginTop: 10, paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: FS.base, fontWeight: 700, color: C.text }}>Total</span>
+            <span style={{ fontSize: FS.md, fontWeight: 700, color: C.accent, fontFamily: FONT.mono }}>{fmt(venta.total)}</span>
           </div>
           {venta.vuelto > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-              <span style={{ fontSize: FS.sm, color: '#52525B' }}>Vuelto</span>
-              <span style={{ fontSize: FS.sm, fontWeight: 600, color: '#F59E0B', fontFamily: FONT.mono }}>{fmt(venta.vuelto)}</span>
+              <span style={{ fontSize: FS.sm, color: C.textMid }}>Vuelto</span>
+              <span style={{ fontSize: FS.sm, fontWeight: 600, color: C.amber, fontFamily: FONT.mono }}>{fmt(venta.vuelto)}</span>
             </div>
           )}
         </div>
 
         <button onClick={onNuevaVenta} style={{
           width: '100%', padding: '13px', borderRadius: 0, border: 'none',
-          background: '#10B981', color: '#fff', fontSize: FS.base, fontWeight: 700,
+          background: C.accent, color: '#fff', fontSize: FS.base, fontWeight: 700,
           cursor: 'pointer', fontFamily: FONT.sans, transition: 'all 0.15s',
         }}
-          onMouseEnter={e => e.currentTarget.style.background = '#059669'}
-          onMouseLeave={e => e.currentTarget.style.background = '#10B981'}
+          onMouseEnter={e => e.currentTarget.style.background = C.accentHov}
+          onMouseLeave={e => e.currentTarget.style.background = C.accent}
         >
           Nueva venta
         </button>

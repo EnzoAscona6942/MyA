@@ -5,6 +5,14 @@
 import type { Producto, Caja, Venta } from '../../types/api';
 
 // ── Paleta de colores ────────────────────────────────────────
+// Single owner of the POS palette values. `index.css :root` declares the
+// same colours as custom properties for the shell layer; the two are kept in
+// agreement by a guard in `__tests__/pos-ui-contracts.test.ts`.
+//
+// These stay literal rather than becoming `var(--token)` references on
+// purpose. `C` is consumed in three contexts where a `var()` string is a
+// behaviour no test here can observe: SVG presentation attributes, CSSOM
+// assignment from hover handlers, and inline style concatenation.
 export const C = {
   bg: '#F5F5F3',
   white: '#FFFFFF',
@@ -19,9 +27,7 @@ export const C = {
   danger: '#EF4444',
   dangerBg: '#FEE2E2',
   amber: '#F59E0B',
-  amberBg: '#FEF3C7',
-  blue: '#3B82F6',
-  blueBg: '#DBEAFE'
+  amberBg: '#FEF3C7'
 } as const;
 
 // ── Typography ───────────────────────────────────────────────

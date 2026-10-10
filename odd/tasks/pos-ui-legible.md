@@ -215,6 +215,44 @@ Roughly 250-300 authored changed lines across the four work units — under the
   only rejects a single-quoted literal directly after the colon; double quotes or
   extra whitespace satisfy it.
 
+### WU6 — Palette ownership, dead code and the barrel — DONE
+
+- Route: **delegated** (one writer, `gentle-ai-worker`) + one parent cleanup.
+- **The obvious fix was rejected on purpose.** Making `C` hold `var(--accent)`
+  strings would have put `var()` into three contexts no test here can observe:
+  SVG presentation attributes (`stroke={C.textLight}`), CSSOM assignment from
+  hover handlers (`e.currentTarget.style.border = '1px solid ' + C.accent`), and
+  inline concatenation. `C` keeps literal values; drift is made *detectable*
+  instead of making the value indirect.
+- 41 palette-duplicating literals replaced with `C.*` across `components.tsx`
+  (`render.tsx` already used tokens throughout). `#FEE2E2` and `#0A0A0A` had zero
+  occurrences, so nothing was replaced for them.
+- Three sites needed a form change rather than a substitution: backtick border
+  templates, two CSSOM handlers, and one SVG `stroke` attribute.
+- Left deliberately, and each for a reason: `#F9FAFB`, `#6B7280`, `#4B5563`,
+  `#9CA3AF` and the `rgba(255,255,255,0.0x)` scrims are sidebar-specific with no
+  `:root` entry; `#D1D5DB` is the disabled-button grey; `rgba(0,0,0,0.45)` is the
+  modal scrim and is distinct from `C.border`'s `0.15`; `#16A34A` is a gradient
+  stop; `#FECACA` is the error border.
+- Drift guard added in both directions: every `C` token must equal its `:root`
+  value, and every `:root` colour must exist in `C` with only `--font-sans` /
+  `--font-mono` excluded as font stacks. Proven with five independent mutations,
+  each failing exactly its own guard, and each reverted hash-identically. A third
+  guard fails if any `C` value contains `var(`, so nobody is tempted back.
+- Barrel `pos/index.ts` deleted. Three importers repointed at `./types` and
+  `./icons`. **17 unused imports dropped**, each verified by a case-sensitive body
+  scan — `tsc` has no `noUnusedLocals`, so it would not have caught a mistake.
+- Dead `@keyframes flashGreen` / `.flash-green` removed. The two test assertions
+  were **inverted**, not deleted, so reintroducing dead CSS now fails the suite.
+- **Parent cleanup:** `C.blue` and `C.blueBg` were dead inside the POS — zero
+  usages, and the sibling pages each declare their own literal `C`, so nothing
+  reads `var(--blue)`. Verified zero references across the whole frontend, then
+  removed from both `types.ts` and `index.css`. The drift guard stayed coherent
+  because both owners moved together.
+- Parent verification: `tsc` 0, **104/104** tests (101 + 3), `build` 0,
+  `index.ts` absent, zero `from './index'`, zero palette literals, zero
+  `fontSize: \d`, zero raw `'DM Mono'`, zero `blue` residuals.
+
 ### WU5 — Close the review's test guard gaps — DONE
 
 - Route: **delegated** (one writer, `gentle-ai-worker`).

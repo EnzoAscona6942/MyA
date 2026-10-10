@@ -22,13 +22,7 @@
   100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
 }
 
-@keyframes flashGreen {
-  0%   { background: #DCFCE7; }
-  100% { background: #FFFFFF; }
-}
-
 .item-enter { animation: slideIn 0.2s ease forwards; }
-.flash-green { animation: flashGreen 0.6s ease forwards; }
 
 /* ============================================================
    HOVER AFFORDANCES MIRRORED ON KEYBOARD FOCUS

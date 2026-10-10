@@ -16,6 +16,7 @@
 import { existsSync } from 'node:fs';
 import { fixturePath, frontendRoot, readFixture } from './posTestRoot';
 
+const INDEX_CSS = 'src/index.css';
 const POS_ENTRY = 'src/pages/POS.tsx';
 const POS_STYLESHEET = 'src/pages/pos/pos.css';
 const POS_TYPES = 'src/pages/pos/types.ts';
@@ -94,6 +95,31 @@ const declaredKeys = (source: string, objectName: string): string[] => {
   ]
     .map(([, key]) => key ?? '')
     .filter((key) => key.length > 0);
+};
+
+// The same literal, but read as `key -> value`. Only single-quoted string
+// values are captured: every palette entry in `types.ts` is a colour
+// literal, and a value this reader cannot see is a value it must not
+// silently treat as matching.
+const declaredEntries = (source: string, objectName: string): Map<string, string> => {
+  const block =
+    new RegExp(`export const ${objectName} = \\{([\\s\\S]*?)\\} as const;`).exec(source)?.[1] ?? '';
+  const entries = new Map<string, string>();
+  for (const [, key, value] of block.matchAll(/^\s*([A-Za-z_]\w*)\s*:\s*'([^']*)'/gm)) {
+    if (key !== undefined && value !== undefined) entries.set(key, value);
+  }
+  return entries;
+};
+
+// Custom properties declared inside the `:root` block of the shell
+// stylesheet, read as `--name -> value`.
+const rootCustomProperties = (css: string): Map<string, string> => {
+  const block = /^:root\s*\{([\s\S]*?)\}/m.exec(css)?.[1] ?? '';
+  const entries = new Map<string, string>();
+  for (const [, name, value] of block.matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)) {
+    if (name !== undefined && value !== undefined) entries.set(name, value.trim());
+  }
+  return entries;
 };
 
 describe('POS test harness', () => {
@@ -260,5 +286,94 @@ describe('POS typographic scale adoption', () => {
 
     expect(scaleTokens.filter((token) => !declaredScale.includes(token))).toEqual([]);
     expect(fontTokens.filter((token) => !declaredFonts.includes(token))).toEqual([]);
+  });
+});
+
+// ============================================================
+// PALETTE OWNERSHIP
+// ============================================================
+//
+// `src/index.css` declares the palette in `:root` and
+// `pages/pos/types.ts` re-implements the same colours as `C`. Neither
+// owner reads the other, so one could move while the other stayed and
+// nothing would notice.
+//
+// `C` deliberately keeps literal values instead of `var(--token)`
+// strings, because it is consumed in three places where an unresolved
+// value is invisible to every check in this repo: SVG presentation
+// attributes (`stroke={C.textLight}`), CSSOM writes from hover and
+// focus handlers (`style.border = '1px solid ' + C.accent`) and inline
+// style objects. The browser silently ignores an unresolvable value in
+// all three, and neither jsdom nor the build can observe it. So the
+// value stays duplicated and these tests are what make the duplication
+// detectable instead of silent.
+describe('POS palette ownership', () => {
+  // `:root` custom property name for a palette token. Observed to be the
+  // plain `--` + token transform for every key, camelCase included: the
+  // stylesheet really does spell them `--textMid`, `--accentHov`,
+  // `--accentBg`, `--dangerBg` and `--amberBg`.
+  const rootPropertyFor = (token: string): string => `--${token}`;
+
+  // The only `:root` properties the POS palette does not own, as bare
+  // names because `rootCustomProperties` strips the leading dashes.
+  // These are font stacks, not colours.
+  const FONT_STACKS = ['font-sans', 'font-mono'];
+
+  it('declares every C token in :root with the same value', () => {
+    const palette = declaredEntries(readFixture(POS_TYPES), 'C');
+    const root = rootCustomProperties(readFixture(INDEX_CSS));
+
+    // Non-vacuity: the palette really is being read out of `types.ts`.
+    expect(palette.size).toBeGreaterThan(0);
+
+    const drift = [...palette].flatMap(([token, value]) => {
+      const declared = root.get(token);
+      if (declared === undefined) return [`${token}: :root declares no ${rootPropertyFor(token)}`];
+      return declared === value ? [] : [`${token}: C=${value} but :root ${rootPropertyFor(token)}=${declared}`];
+    });
+
+    expect(drift).toEqual([]);
+  });
+
+  it('declares every :root colour property in C', () => {
+    const palette = declaredEntries(readFixture(POS_TYPES), 'C');
+    const root = rootCustomProperties(readFixture(INDEX_CSS));
+
+    const orphans = [...root.keys()].filter((name) => !palette.has(name));
+
+    // The palette owns every colour `:root` declares. Adding a colour to
+    // `:root` without mirroring it in `C` is the drift this catches, so
+    // the only permitted extras are the two font stacks, asserted by
+    // name AND by shape: a colour could not pass for a stack.
+    expect(orphans).toEqual(FONT_STACKS);
+    for (const name of FONT_STACKS) {
+      const declared = root.get(name) ?? '';
+      expect(declared).toMatch(/^'[^']+'/);
+      expect(declared).not.toMatch(/^#|^rgba/);
+    }
+  });
+
+  it('keeps the palette literal in C and out of the POS modules', () => {
+    const palette = declaredEntries(readFixture(POS_TYPES), 'C');
+
+    // Non-vacuity on both axes: the palette is non-empty and really does
+    // carry colour values, so an empty reader cannot read as a pass.
+    expect(palette.size).toBeGreaterThan(0);
+    expect([...palette.values()].some((value) => value.startsWith('#'))).toBe(true);
+
+    // `var()` inside `C` would reach the three consumers named above
+    // unresolved and be dropped by the browser with nothing turning red.
+    expect([...palette.values()].filter((value) => value.includes('var('))).toEqual([]);
+
+    // The same shortcut inside a module would reintroduce the two-owner
+    // split this whole suite exists to prevent, just less visibly.
+    const viaVar = POS_MODULES.flatMap((module) => {
+      const source = readFixture(module);
+      return [...palette.keys()]
+        .map((token) => rootPropertyFor(token))
+        .filter((property) => source.includes(`var(${property})`))
+        .map((property) => `${module}: var(${property})`);
+    });
+    expect(viaVar).toEqual([]);
   });
 });
