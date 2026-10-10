@@ -215,6 +215,51 @@ Roughly 250-300 authored changed lines across the four work units — under the
   only rejects a single-quoted literal directly after the colon; double quotes or
   extra whitespace satisfy it.
 
+### WU7 — Sharpen the guards the second review found — DONE
+
+- Route: **delegated** (one writer, `gentle-ai-worker`). Test-only: no
+  production file changed, parent-verified.
+- **104 → 111 tests** across 14 files. Nothing deleted, skipped or weakened.
+- F1 — the body-font guard resolved `/body\s*\{/` unanchored and took the first
+  match. Proven concretely: with a `tbody` decoy carrying `var(--font-sans)` and
+  the real `body` rule hardcoded, the **old guard returned green** — fooled on the
+  exact regression it exists to catch. Now the selector is matched per
+  comma-separated part and must be a genuine `body` element; accepts `body`,
+  `html body`, `.wrap > body`, `a, body`; rejects `tbody`, `.card-body`,
+  `#page-body`, `body.dark`, `.body`. That matrix is a permanent test.
+- F2 — a value beginning with `var(--font-sans` was accepted, so
+  `var(--font-sans), 'DM Mono', monospace` passed. The old guard was replayed on
+  that break and also came back green. Now the value may contain no quoted family
+  string at all.
+- F3 — the capture required a trailing semicolon, so a last-declaration family
+  escaped. The terminator is now optional and `}` also bounds it.
+- F4 — the audited module list was hardcoded. `posModulesOnDisk()` now
+  enumerates every `.ts`/`.tsx` under `src/pages/pos/` and asserts the set equals
+  `AUDITED ∪ EXCLUDED` exactly. Adding a POS module fails until someone decides
+  deliberately whether it belongs. Exclusions carry a written reason, and a second
+  test fails if any exclusion's reason is too short to be real.
+- F5 — non-vacuity took `Math.max` across modules, so one module could empty out.
+  Replaced by a per-module floor in both the `fontSize` and `fontFamily` guards.
+- F6 — the raw-family scan only matched two quoting forms. Broadened, plus a
+  self-test over eight must-catch and three must-not-catch snippets so a broken
+  pattern cannot read as a clean module.
+- F7 — the worker took the *both-forms-plus-a-count-contract* route rather than
+  proving double-quoted is the only form: that proof would hold only until the
+  first refactor to a template literal. Interpolated expressions are counted rather
+  than flattened, so an unparseable form fails loudly.
+- F8 — the harness accepted any directory with the two marker files. It now also
+  requires the manifest to declare `frontend`, verified against a decoy directory.
+- **`R3-008` rejected by the parent and left as is.** The finding says the harness
+  should not throw during module evaluation, because it couples both suites to the
+  filesystem search. That coupling *is* the fix for `R3-test-cwd-root`: failing
+  loudly at load with the list of directories probed beats dozens of confusing
+  `ENOENT`s. The `R3-010` `import.meta.dirname` guard is unchanged.
+- The worker deliberately did **not** pin `excluded.size === 3`: that would re-freeze
+  the list and reintroduce the hardcoding F4 exists to remove.
+- Parent verification: `tsc` 0, **111/111** tests, `build` 0, and
+  `git diff` over `frontend/src/pages`, `frontend/src/index.css`,
+  `frontend/index.html` and `frontend/public` is **empty** — confirmed test-only.
+
 ### WU6 — Palette ownership, dead code and the barrel — DONE
 
 - Route: **delegated** (one writer, `gentle-ai-worker`) + one parent cleanup.

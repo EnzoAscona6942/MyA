@@ -33,6 +33,64 @@ const FONT_FILES = [
   { file: 'dm-mono-500.woff2', family: 'DM Mono', weight: 500 }
 ] as const;
 
+// The `body` element rule, read off the stylesheet as a selector list.
+//
+// This is deliberately NOT `/body\s*\{([^}]*)\}/` with "first match wins".
+// That pattern is unanchored on the left, so any earlier rule whose selector
+// merely ends in the letters `body` — a `tbody` element, a `.card-body`
+// utility class, a `#page-body` id — is read as the subject instead of the
+// real one. A wrong rule declaring the token family while the real `body`
+// rule carries a hardcoded literal then reads as a pass on exactly the
+// regression this guard exists to catch.
+//
+// The selector is split on commas, and each part must BE `body`: no
+// identifier character, hyphen, class or id may precede it, and nothing may
+// follow it. `html body` and `.wrap > body` match because `body` is still the
+// subject of that compound; `body.dark`, `tbody`, `.card-body` and
+// `#page-body` do not.
+const BODY_SELECTOR = /(?:^|[\s>+~])\s*body\s*$/;
+
+// Every declaration block whose selector list targets the `body` element.
+// Empty when the stylesheet declares no such rule, which the assertions
+// below treat as a failure rather than as a pass.
+const bodyRuleDeclarations = (css: string): string[] => {
+  // Strip block comments first: a commented-out rule is not a rule, and
+  // `@media { body { ... } }` bodies are reached by the same flat scan.
+  const source = css.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  return [...source.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, selector]) =>
+      (selector ?? '')
+        .split(',')
+        .map((part) => part.trim())
+        .some((part) => BODY_SELECTOR.test(part))
+    )
+    .map(([, , declarations]) => (declarations ?? '').trim());
+};
+
+// The `font-family` values declared by the `body` rule.
+//
+// The terminating semicolon is OPTIONAL so the last declaration in a rule is
+// still captured. Requiring it made the guard's outcome depend on how the
+// stylesheet happens to be serialised: a `body` rule whose `font-family` is
+// final and unterminated yielded an empty list and the non-vacuity assertion
+// failed for a purely formatting reason.
+const bodyFamilyValues = (css: string): string[] =>
+  bodyRuleDeclarations(css)
+    .flatMap((declarations) => [...declarations.matchAll(/font-family\s*:\s*([^;}]+)/g)])
+    .map(([, value]) => (value ?? '').trim())
+    .filter((value) => value.length > 0);
+
+// The only legitimate `body` value is the token plus its fallback list. The
+// fallback must be unquoted: a quoted family name anywhere in the value is
+// the literal class this guard rejects, and it used to slip through whenever
+// the capture merely *began* with the token — as in
+// `var(--font-sans), 'DM Mono', monospace`, where the capture spans the
+// commas up to the next semicolon.
+const QUOTED_FAMILY = /['"`]/;
+
+const isSansTokenValue = (value: string): boolean =>
+  value.startsWith('var(--font-sans') && !QUOTED_FAMILY.test(value);
+
 // The `@font-face` block that declares `file`, or an empty string when the
 // stylesheet never references it.
 const fontFaceBlockFor = (css: string, file: string): string => {
@@ -119,7 +177,13 @@ describe('POS webfonts and animations', () => {
     });
 
     it('applies the sans stack to the body', () => {
-      expect(read(INDEX_CSS)).toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-sans\)/);
+      // Read through the anchored extractor rather than through a loose
+      // `/body\s*\{/`, so this proves the *body element* takes the stack and
+      // not whichever earlier rule happened to end in those letters.
+      const values = bodyFamilyValues(read(INDEX_CSS));
+      // Non-vacuity: the body rule was located and declares a family.
+      expect(values.length).toBeGreaterThan(0);
+      expect(values.some((value) => value.startsWith('var(--font-sans'))).toBe(true);
     });
 
     it('never hardcodes a font family on the body', () => {
@@ -129,17 +193,52 @@ describe('POS webfonts and animations', () => {
       // quotes and for spacing before the colon: the previous form only
       // rejected a single-quoted literal sitting right after the colon.
       const css = read(INDEX_CSS);
-      const bodyRule = /body\s*\{([^}]*)\}/.exec(css)?.[1];
-      expect(bodyRule).toBeDefined();
 
-      const families = [...(bodyRule ?? '').matchAll(/font-family\s*:\s*([^;]+);/g)]
-        .map(([, value]) => (value ?? '').trim())
-        .filter((value) => value.length > 0);
+      // Non-vacuity on two axes: the anchored extractor really found the
+      // `body` element rule, and that rule really declares a family. A
+      // broken selector or a broken value pattern must fail here rather
+      // than read as a clean sweep.
+      expect(bodyRuleDeclarations(css).length).toBeGreaterThan(0);
 
-      // Non-vacuity: the body does declare a family, so a hardcoded one
-      // would be caught rather than skipped.
+      const families = bodyFamilyValues(css);
       expect(families.length).toBeGreaterThan(0);
-      expect(families.filter((value) => !value.startsWith('var(--font-sans'))).toEqual([]);
+      // Legitimate value: the token, optionally followed by its own
+      // unquoted fallback list. `var(--font-sans)` passes;
+      // `var(--font-sans), 'DM Mono', monospace` does not, because the
+      // quoted literal is a second source of truth even though the value
+      // starts with the token.
+      expect(families.filter((value) => !isSansTokenValue(value))).toEqual([]);
+    });
+
+    it('resolves the body element rule, not a selector ending in "body"', () => {
+      // The anchoring itself, proven on a synthetic stylesheet, so a
+      // regression that loosens the selector is caught here instead of
+      // silently reading another rule in the real file.
+      const decoy = (selector: string): string =>
+        `${selector} { font-family: var(--font-sans); }`;
+
+      // Rejected: the letters `body` inside a longer selector.
+      for (const selector of ['tbody', '.card-body', '#page-body', 'body.dark', '.body']) {
+        expect(bodyFamilyValues(`${decoy(selector)}\nbody { font-family: 'DM Mono'; }`)).toEqual([
+          "'DM Mono'"
+        ]);
+      }
+
+      // Accepted: `body` alone, after a combinator, or after a comma.
+      for (const selector of ['body', 'html body', '.wrap > body', 'a, body']) {
+        expect(bodyFamilyValues(`${decoy(selector)}`)).toEqual(['var(--font-sans)']);
+      }
+    });
+
+    it('reads a font-family that ends the body rule without a trailing semicolon', () => {
+      // The serialisation independence the optional terminator buys.
+      const unterminated = 'body { color: var(--text); font-family: var(--font-sans) }';
+      expect(bodyFamilyValues(unterminated)).toEqual(['var(--font-sans)']);
+
+      // And the negative still bites when the value is the last declaration.
+      expect(bodyFamilyValues("body { color: var(--text); font-family: 'DM Mono' }")).toEqual([
+        "'DM Mono'"
+      ]);
     });
   });
 

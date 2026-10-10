@@ -13,16 +13,80 @@
 // silently stops matching is worse than no guard, because it reads as
 // coverage.
 
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { fixturePath, frontendRoot, readFixture } from './posTestRoot';
 
 const INDEX_CSS = 'src/index.css';
 const POS_ENTRY = 'src/pages/POS.tsx';
+const POS_MODULE_DIR = 'src/pages/pos';
 const POS_STYLESHEET = 'src/pages/pos/pos.css';
 const POS_TYPES = 'src/pages/pos/types.ts';
-const POS_MODULES = ['src/pages/pos/render.tsx', 'src/pages/pos/components.tsx'] as const;
+
+// The audited POS modules: the ones that consume style objects, and so are
+// subject to every contract in this file.
+//
+// This list is NOT the source of truth for the module set. `posModulesOnDisk`
+// enumerates the directory and the harness suite asserts the two agree, so
+// adding a third POS module fails the suite until somebody decides
+// deliberately whether it belongs under the contracts.
+const AUDITED_POS_MODULES = [
+  'src/pages/pos/render.tsx',
+  'src/pages/pos/components.tsx'
+] as const;
+
+// Discovered POS modules that are deliberately NOT audited, each with the
+// reason on record. An omission is invisible; a named exclusion is a
+// decision somebody can review, and it fails the suite if the module is
+// deleted (see `harness` -> 'accounts for every POS module on disk').
+const EXCLUDED_POS_MODULES: ReadonlyMap<string, string> = new Map([
+  [
+    'src/pages/pos/types.ts',
+    'Declares the scale, palette and font-role tokens the audited modules consume. It is the owner, not a consumer: scanning it for fontSize or fontFamily usage would only find the definitions.'
+  ],
+  [
+    'src/pages/pos/icons.tsx',
+    'Inline SVG icon components. They render through attributes (stroke, fill, width), not style objects, so no font, size or animation declaration can appear.'
+  ],
+  [
+    'src/pages/pos/logic.ts',
+    'State and hooks only. It holds no JSX and no style objects, so there is nothing for the style contracts to read.'
+  ]
+]);
+
+// Backwards-compatible alias used throughout the file.
+const POS_MODULES = AUDITED_POS_MODULES;
 
 // ── Extractors ───────────────────────────────────────────────
+
+// Every `.ts` / `.tsx` module under `src/pages/pos/`, as package-relative
+// paths with forward slashes.
+//
+// Enumerating the directory is what makes the completeness check possible:
+// iterating `AUDITED_POS_MODULES` instead proves only that the audited list
+// is internally consistent, so a third POS module left every contract green
+// while it went entirely unexamined. `readdirSync` with `recursive` keeps a
+// module added in a subdirectory from hiding.
+const posModulesOnDisk = (): string[] =>
+  readdirSync(fixturePath(POS_MODULE_DIR), { recursive: true, encoding: 'utf8' })
+    .filter((entry) => /\.tsx?$/.test(entry))
+    .map((entry) => `${POS_MODULE_DIR}/${entry.replace(/\\/g, '/')}`)
+    .sort();
+
+// A `DM Mono` family name appearing as a quoted or template-literal string,
+// anywhere in the source and whatever follows it.
+//
+// Requiring the closing quote to sit immediately after the name, as the
+// previous scan did, missed the two shapes that matter most: a family inside
+// a template literal, and a family name embedded in a stack such as
+// `` `DM Mono, monospace` ``. Both are quoted on the left and neither closes
+// right after the name.
+//
+// It matches the *string*, not the role of the string. The family-role
+// assertion reads only the `fontFamily` property, so a literal in any other
+// position (a `style` object, a CSS template, a `const`) is exactly what
+// this scan is for. The guard's own comment naming the intent lives in THIS
+// file, never in a POS module, so it cannot match.
+const RAW_MONO_FAMILY = /['"`][^'"`]*DM\s*\+?\s*Mono/;
 
 // Style-object property values, up to the comma, semicolon, newline or
 // closing brace that ends the declaration.
@@ -73,10 +137,35 @@ const animatedClasses = (css: string): Map<string, string> => {
   return links;
 };
 
+// Class names written in a JSX `className` attribute.
+//
+// Three attribute forms are read, not just the double-quoted literal:
+//   className="a b"        static literal
+//   className='a b'        single-quoted literal
+//   className={`a b`}      template literal with no interpolation
+// An expression form carrying an interpolation (`className={`a ${x}`}`) is
+// deliberately NOT flattened into class names: the literal segments around
+// `${}` are not class names, and guessing at them would make the reader
+// report classes the component never applies. Those attributes are still
+// COUNTED, and `harness` asserts the count of collected attributes matches
+// the count of `className=` occurrences, so an unreadable form fails the
+// suite instead of quietly shrinking the scan.
+//
+// Each form is stripped of its delimiters before splitting, so
+// `className="item-enter"` contributes the one class `item-enter`.
+const CLASS_NAME_LITERAL =
+  /className\s*=\s*(?:"([^"\\]*)"|'([^'\\]*)'|\{\s*`([^`\\$]*)`\s*\})/g;
+
+// Total `className=` attributes, including the forms above cannot read.
+const CLASS_NAME_OCCURRENCES = /\bclassName\s*=/g;
+
 const componentClassNames = (source: string): string[] =>
-  [...source.matchAll(/className\s*=\s*"([^"]*)"/g)]
-    .flatMap(([, value]) => (value ?? '').split(/\s+/))
-    .filter((className) => className.length > 0);
+  [...source.matchAll(CLASS_NAME_LITERAL)]
+    .flatMap(([, doubleQuoted, singleQuoted, templateLiteral]) =>
+      (doubleQuoted ?? singleQuoted ?? templateLiteral ?? '')
+        .split(/\s+/)
+        .filter((className) => className.length > 0)
+    );
 
 const tokenReferences = (source: string, objectName: string): string[] => [
   ...new Set(
@@ -130,6 +219,45 @@ describe('POS test harness', () => {
     expect(existsSync(fixturePath('package.json'))).toBe(true);
     expect(readFixture('package.json')).toContain('"name": "frontend"');
     expect(frontendRoot.endsWith('frontend')).toBe(true);
+  });
+
+  it('accounts for every POS module on disk', () => {
+    // The completeness check the hardcoded list could never make. A third
+    // POS module previously left every contract green while it went
+    // entirely unexamined; now it fails until somebody decides whether it
+    // belongs under the contracts.
+    const discovered = posModulesOnDisk();
+
+    // Non-vacuity on both sides: the directory really was enumerated, and
+    // the audited list is not empty, so an empty reader cannot read as a
+    // complete audit.
+    expect(discovered.length).toBeGreaterThan(0);
+    expect(AUDITED_POS_MODULES.length).toBeGreaterThan(0);
+
+    const accounted = [...AUDITED_POS_MODULES, ...EXCLUDED_POS_MODULES.keys()].sort();
+
+    // Every discovered module is audited or excluded by name, and nothing is
+    // accounted for that no longer exists.
+    expect(discovered).toEqual(accounted);
+
+    // An audited module that was deleted or renamed fails here rather than
+    // leaving a silently vacuous guard behind.
+    expect(AUDITED_POS_MODULES.every((module) => discovered.includes(module))).toBe(true);
+
+    // Every audited module must actually be readable.
+    for (const module of AUDITED_POS_MODULES) {
+      expect(readFixture(module).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('names a reason for every POS module it excludes from the contracts', () => {
+    // An exclusion with no reason recorded is an omission wearing a
+    // disguise, which is the exact failure mode the enumeration above
+    // exists to prevent.
+    for (const [module, reason] of EXCLUDED_POS_MODULES) {
+      expect(module.length).toBeGreaterThan(0);
+      expect(reason.trim().length).toBeGreaterThan(20);
+    }
   });
 
   it('reads every fixture it asserts on', () => {
@@ -208,6 +336,55 @@ describe('POS stylesheet wiring', () => {
     expect(missing).toEqual([]);
   });
 
+  it('reads every className attribute the POS modules declare', () => {
+    // The class-name contract used to be proven for the double-quoted form
+    // only: a single-quoted or template-literal class name dropped out of
+    // the scan while the non-vacuity anchors still passed, because the other
+    // attributes kept the collected list non-empty. So the reader handles
+    // all three literal forms, AND this test proves it read every attribute
+    // there is — the count of collected attributes must equal the count of
+    // `className=` occurrences. A form the reader cannot parse fails here
+    // rather than silently narrowing the scan.
+    const mismatches = POS_MODULES.flatMap((module) => {
+      const source = readFixture(module);
+      const occurrences = [...source.matchAll(CLASS_NAME_OCCURRENCES)].length;
+      const collected = [...source.matchAll(CLASS_NAME_LITERAL)].length;
+      return occurrences === collected ? [] : [`${module}: ${occurrences} className=, ${collected} read`];
+    });
+    expect(mismatches).toEqual([]);
+
+    // Non-vacuity: `render.tsx` really does put classes on elements, and the
+    // reader really does extract names out of them.
+    const names = POS_MODULES.flatMap((module) => componentClassNames(readFixture(module)));
+    expect(names.length).toBeGreaterThan(0);
+    expect(names).toContain('item-enter');
+  });
+
+  it('reads class names from every literal attribute form', () => {
+    // The reader's own contract, on synthetic JSX: all three forms the POS
+    // could adopt must yield the same class names.
+    const source = [
+      'const a = <div className="alpha beta" />;',
+      "const b = <div className='gamma delta' />;",
+      'const c = <div className={`epsilon zeta`} />;'
+    ].join('\n');
+
+    expect(componentClassNames(source)).toEqual([
+      'alpha',
+      'beta',
+      'gamma',
+      'delta',
+      'epsilon',
+      'zeta'
+    ]);
+
+    // An interpolated expression is counted but not flattened, so the count
+    // assertion above fails on it rather than inventing class names.
+    const interpolated = 'const d = <div className={`eta ${x}`} />;';
+    expect([...interpolated.matchAll(CLASS_NAME_LITERAL)].length).toBe(0);
+    expect([...interpolated.matchAll(CLASS_NAME_OCCURRENCES)].length).toBe(1);
+  });
+
   it('resolves every animated class a POS component uses to a declared @keyframes', () => {
     const css = readFixture(POS_STYLESHEET);
     const links = animatedClasses(css);
@@ -235,24 +412,61 @@ describe('POS typographic scale adoption', () => {
         .map((value) => `${module}: fontSize: ${value}`)
     );
 
-    const declared = POS_MODULES.map((module) =>
-      styleValues(readFixture(module), 'fontSize').length
+    // Non-vacuity is a PER-MODULE FLOOR, not a maximum. `Math.max` across
+    // modules let a module that lost every `fontSize` declaration pass on
+    // the strength of the other one, with an empty offender list reading as
+    // a clean sweep. Every audited module must declare at least one, so
+    // one module emptying out fails.
+    const silent = POS_MODULES.filter(
+      (module) => styleValues(readFixture(module), 'fontSize').length === 0
     );
-    // Non-vacuity: the POS declares dozens of sizes, all of them scaled.
-    expect(Math.max(...declared)).toBeGreaterThan(0);
+    expect(silent).toEqual([]);
+
     expect(offenders).toEqual([]);
   });
 
   it('declares no raw DM Mono family literal', () => {
-    // Non-vacuity: the monospace role really is in use, so a literal
-    // appearing alongside it would be a second source of truth.
+    // Non-vacuity on two axes: the monospace role really is in use, so a
+    // literal appearing alongside it would be a second source of truth, and
+    // the scan really does match the shapes it claims to (the self-test
+    // below, so a broken pattern cannot read as a clean module).
     const sources = POS_MODULES.map(readFixture);
     expect(sources.some((source) => source.includes('FONT.mono'))).toBe(true);
 
-    const offenders = POS_MODULES.filter((module) =>
-      /['"]DM Mono['"]|['"]DM\+Mono['"]/.test(readFixture(module))
-    );
+    const offenders = POS_MODULES.filter((module) => RAW_MONO_FAMILY.test(readFixture(module)));
     expect(offenders).toEqual([]);
+  });
+
+  it('catches a DM Mono literal in every quoting form the modules could use', () => {
+    // The scan's own contract. Previously the closing quote had to sit
+    // immediately after the name, so a family inside a template literal or
+    // embedded in a stack followed by a fallback list slipped past, and the
+    // family-role assertion could not see it either: it reads only the
+    // `fontFamily` property.
+    const caught = [
+      "fontFamily: 'DM Mono'",
+      'fontFamily: "DM Mono"',
+      'fontFamily: `DM Mono`',
+      "fontFamily: 'DM Mono, monospace'",
+      'const stack = `DM Mono, monospace`',
+      "const s = { fontFamily: 'DM Mono, monospace', color: C.text }",
+      "const url = 'https://fonts.googleapis.com/css?family=DM+Mono'",
+      "const q = 'DM+Mono:wght@400'"
+    ];
+    for (const snippet of caught) {
+      expect([snippet].some((source) => RAW_MONO_FAMILY.test(source))).toBe(true);
+    }
+
+    // And it must not fire on the legitimate role references, or the guard
+    // would be unusable.
+    const allowed = [
+      "fontFamily: 'var(--font-mono, ui-monospace, Cascadia Mono, monospace)'",
+      "fontFamily: 'var(--font-sans, system-ui, sans-serif)'",
+      "const fontFamily = FONT.mono"
+    ];
+    for (const snippet of allowed) {
+      expect([snippet].some((source) => RAW_MONO_FAMILY.test(source))).toBe(false);
+    }
   });
 
   it('resolves every fontFamily to one of the two FONT roles', () => {
@@ -262,10 +476,12 @@ describe('POS typographic scale adoption', () => {
         .map((value) => `${module}: fontFamily: ${value}`)
     );
 
-    const declared = POS_MODULES.map((module) =>
-      styleValues(readFixture(module), 'fontFamily').length
+    // Per-module floor, for the same reason as the fontSize check above.
+    const silent = POS_MODULES.filter(
+      (module) => styleValues(readFixture(module), 'fontFamily').length === 0
     );
-    expect(Math.max(...declared)).toBeGreaterThan(0);
+    expect(silent).toEqual([]);
+
     expect(offenders).toEqual([]);
   });
 

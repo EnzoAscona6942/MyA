@@ -26,6 +26,14 @@ import { fileURLToPath } from 'node:url';
 // manifest; either file alone could match something unrelated.
 const ROOT_MARKERS = ['vite.config.js', 'package.json'] as const;
 
+// Marker filenames alone do not identify a package. A monorepo root or a
+// sibling package that ships a vite config would satisfy `ROOT_MARKERS` and
+// be accepted, and both suites would then fail together on fixtures that are
+// missing from it — a message pointing at the harness rather than at the
+// wrongly chosen directory. The manifest name is the identity assertion, and
+// it lives here rather than in one suite so a caller cannot skip it.
+const EXPECTED_PACKAGE_NAME = 'frontend';
+
 // Never a package root, and expensive to walk.
 const SKIPPED_DIRS = new Set(['.git', 'node_modules', 'dist', 'coverage', '.opencode']);
 
@@ -34,8 +42,25 @@ const SKIPPED_DIRS = new Set(['.git', 'node_modules', 'dist', 'coverage', '.open
 // letting the walk escape into a large tree.
 const MAX_DOWN = 2;
 
+// `"name"` off the manifest at `dir`, or `null` when it is absent, unreadable
+// or not a JSON object. A manifest this reader cannot see never identifies
+// the package.
+const manifestName = (dir: string): string | null => {
+  const isNamed = (value: unknown): value is { name: unknown } =>
+    typeof value === 'object' && value !== null && 'name' in value;
+
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+    if (!isNamed(parsed)) return null;
+    return typeof parsed.name === 'string' ? parsed.name : null;
+  } catch {
+    return null;
+  }
+};
+
 const isFrontendRoot = (dir: string): boolean =>
-  ROOT_MARKERS.every((marker) => existsSync(join(dir, marker)));
+  ROOT_MARKERS.every((marker) => existsSync(join(dir, marker))) &&
+  manifestName(dir) === EXPECTED_PACKAGE_NAME;
 
 const subdirectories = (dir: string): string[] => {
   try {
@@ -112,7 +137,8 @@ const located = findFrontendRoot();
 if (located.root === null) {
   throw new Error(
     'Test harness could not locate the `frontend` package root.\n' +
-      `Expected a directory containing ${ROOT_MARKERS.join(' and ')}, searched upwards ` +
+      `Expected a directory containing ${ROOT_MARKERS.join(' and ')} whose package.json ` +
+      `declares "name": "${EXPECTED_PACKAGE_NAME}", searched upwards ` +
       `to the filesystem root and then ${MAX_DOWN} levels downwards from: ` +
       `${anchors().join(', ')}.\n` +
       `Directories probed: ${located.probed.join(', ')}.\n` +
